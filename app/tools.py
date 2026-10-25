@@ -82,8 +82,20 @@ def suggest_destinations(req: dict, limit: int = 3) -> list[dict]:
         if req.get("meals") == "AI" and "allinclusive" in d["tags"]:
             score += 10; why.append("сильный выбор отелей «всё включено»")
         if d["id"] == req.get("destination"): score += 100
+        if not maxh:
+            (why if hours <= 4.5 else cons).append(f"дорога ~{hours:.1f} ч из {orig['name']}")
+        if d["visa_free"] and (req.get("visa_free_only") or d["country"] != "Россия"):
+            why.append("без визы для граждан РФ")
+        if budget:
+            share = est / budget
+            (why if share <= 1 else cons).append(f"оценка {rub(est)} = {share*100:.0f}% бюджета")
+        factors = []
+        if children: factors.append(f"дети: kid-score {d['kid_score']:.2f}")
+        if req.get("pets"): factors.append(f"питомец: pet-score {d['pet_score']:.2f}")
+        if req.get("visa_free_only"): factors.append("только без визы")
+        if budget or req.get("price_sensitive"): factors.append("цена")
         res.append(dict(
-            id=d["id"], name=d["name"], country=d["country"], score=round(score, 1), hard_fail=hard_fail,
+            id=d["id"], factors=factors, name=d["name"], country=d["country"], score=round(score, 1), hard_fail=hard_fail,
             weather=c, flight_hours=hours, visa_free=d["visa_free"], est_total=est, tags=d["tags"],
             why=why[:5], tradeoffs=cons[:4], risks=risks[:3],
         ))
@@ -259,7 +271,7 @@ def assemble_trip(req: dict, dest: dict, hotel: dict, out_t: dict, ret_t: dict, 
         checks.append(dict(level="ok", title="Выезд → трансфер → обратный рейс", text=f"Выезд из отеля до 12:00, в {leave:%H:%M} — трансфер, отправление {dep:%H:%M} (запас {buffer} мин)."))
     if req.get("pets"):
         ok = hotel["pets_allowed"] and out_t["pets_in_cabin"] and ret_t["pets_in_cabin"] and tr_out["pets_allowed"]
-        checks.append(dict(level="ok" if ok else "warn", title="Животное", text="Отель, транспорт и трансфер допускают животных." if ok else "Не все сегменты допускают животных в салоне — проверьте условия."))
+        checks.append(dict(level="ok" if ok else "warn", title="Животное", text="Отель, транспорт и трансфер допускают животных." if ok else "Не все сегменты допускают животных: в самолёте — в салоне до 8 кг в переноске, крупнее — в багажном отсеке (оформить заранее, ветпаспорт + чип)."))
     adults, children = pax(req)
     if children and tr_out["type"] == "taxi":
         checks.append(dict(level="ok", title="Ребёнок", text="Детское кресло в трансфере включено."))
@@ -279,7 +291,8 @@ def assemble_trip(req: dict, dest: dict, hotel: dict, out_t: dict, ret_t: dict, 
             checks.append(dict(level="warn", title="Бюджет", text=f"Итого {rub(total)} — на {rub(total-budget)} больше бюджета {rub(budget)}."))
         else:
             checks.append(dict(level="ok", title="Бюджет", text=f"Итого {rub(total)} — в рамках бюджета {rub(budget)} (запас {rub(budget-total)})."))
-    return dict(destination=dest, items=items, total=total, checks=checks,
+    _add_fixes(checks)
+    return dict(destination=dest, items=items, total=total, checks=checks, budget=budget,
                 start_date=checkin_date.isoformat(), end_date=checkout_date.isoformat(), nights=hotel_nights,
                 connection_errors=sum(1 for c in checks if c["level"] == "error"))
 
@@ -292,3 +305,21 @@ def simulate_payment(plan: dict, payer: dict) -> dict:
     return dict(status="paid", booking_id=bid, amount=plan["total"], paid_at=datetime.now().isoformat(timespec="seconds"),
                 vouchers=[dict(item=i["title"], confirmation=f"{bid}-{n+1}") for n, i in enumerate(plan["items"])],
                 note="Оплата симулирована. Реальные деньги не списываются.")
+
+
+FIXES = {
+    "Ранний приезд": dict(label="Взять рейс попозже", kind="outbound", pref="later"),
+    "Ожидание заселения": dict(label="Взять рейс попозже", kind="outbound", pref="later"),
+    "Поздний заезд": dict(label="Взять рейс пораньше", kind="outbound", pref="earlier"),
+    "Ночной выезд": dict(label="Взять дневной обратный рейс", kind="return", pref="day"),
+    "Обратный рейс": dict(label="Взять дневной обратный рейс", kind="return", pref="day"),
+    "Время до вылета": dict(label="Взять рейс пораньше", kind="return", pref="earlier"),
+    "Бюджет": dict(label="Сделать дешевле", say="бюджет меньше"),
+    "Животное": dict(label="Подобрать pet-friendly трансфер", kind="transfer_out", pref="any"),
+}
+
+
+def _add_fixes(checks: list[dict]) -> None:
+    for c in checks:
+        if c["level"] in ("warn", "error") and c["title"] in FIXES:
+            c["fix"] = dict(FIXES[c["title"]])

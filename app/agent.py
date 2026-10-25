@@ -245,7 +245,7 @@ def plan(state: dict, changed: set, trace: Trace, force_all: bool = False) -> li
                 sel[k] = cand[k][0]["id"] if cand[k] else None
         transport_changed = True
         if old_plan and not dest_changed and changed & {"start_date", "nights"}:
-            changes.append("Билеты перепоиск на новые даты")
+            changes.append("Билеты перепоискал на новые даты")
     else:
         trace.reuse("search_transport", "даты/пассажиры не менялись")
         transport_changed = False
@@ -291,18 +291,25 @@ def compose_reply(state: dict, notes: list[str], changes: list[str], memory_note
         text = llm.explain(summary)
     if not text:
         parts = []
+        o_item = next(i for i in p["items"] if i["kind"] == "outbound")
         if changes:
-            parts.append("Пересобрал план, а не начинал заново.")
+            parts.append("Пересобрал только затронутое — изменения ниже, остальное оставил.")
         else:
-            parts.append(f"Предлагаю {d['name']} ({d['country']}).")
-        if d["why"]:
-            parts.append("Почему: " + "; ".join(d["why"][:3]) + ".")
-        if d["tradeoffs"]:
+            parts.append(f"Предлагаю {d['name']} ({d['country']}), {p['nights']} ноч. с {p['start_date'][8:10]}.{p['start_date'][5:7]}.")
+        dest_changed = any(c.startswith("Направление:") or "переключился" in c for c in changes)
+        if d["why"] and (not changes or dest_changed):
+            parts.append("Почему: " + "; ".join(d["why"][:4]) + ".")
+        if d["tradeoffs"] and (not changes or dest_changed):
             parts.append("Компромисс: " + "; ".join(d["tradeoffs"][:2]) + ".")
-        parts.append(f"Собрал пакет: {o['title'].split(': ')[0].lower()}, {h['title']}, трансферы — итого {rub(p['total'])}.")
+        line = f"Пакет: {o_item['title'].split(': ')[0].lower()}, {h['title']}, трансферы — итого {rub(p['total'])}"
+        if req.get("budget"):
+            line += f" ({p['total']*100/req['budget']:.0f}% бюджета {rub(req['budget'])})"
+        parts.append(line + ".")
         warn = [c for c in p["checks"] if c["level"] in ("warn", "error", "error_fixed")]
         if warn:
-            parts.append("Обратите внимание: " + " ".join(c["text"] for c in warn[:2]))
+            parts.append(f"Проверил стыковки: замечаний — {len(warn)} (" + ", ".join(c["title"].lower() for c in warn[:3]) + "), подробности и кнопки исправления — в плане.")
+        else:
+            parts.append("Все стыковки проверены — конфликтов нет.")
         parts.append("Можно выбрать другой вариант в карточках или написать правку («на 2 дня позже», «дешевле», «с собакой»).")
         text = " ".join(parts)
     return text
@@ -347,7 +354,39 @@ def handle_message(state: dict, text: str, profile: dict, today: date | None = N
     return finalize(state, resp)
 
 
+def _resolve_fixes(state: dict) -> None:
+    """Turn generic check fixes into a concrete one-click alternative (actionable warnings)."""
+    p = state.get("plan")
+    if not p:
+        return
+    cands, sel = state.get("candidates") or {}, state.get("selected") or {}
+    for c in p["checks"]:
+        f = c.get("fix")
+        if not f or "kind" not in f:
+            continue
+        opts = [o for o in cands.get(f["kind"]) or [] if o["id"] != sel.get(f["kind"])]
+        def hr(o, key):
+            return int(o[key][11:13]) if key in o else 12
+        cur = next((o for o in cands.get(f["kind"]) or [] if o["id"] == sel.get(f["kind"])), None)
+        pick = None
+        if f["pref"] == "day":
+            pick = next((o for o in opts if 9 <= hr(o, "depart") <= 20), None)
+        elif f["pref"] == "later" and cur:
+            pick = next((o for o in sorted(opts, key=lambda o: o["arrive"]) if o["arrive"] > cur["arrive"] and hr(o, "arrive") <= 20), None)
+        elif f["pref"] == "earlier" and cur:
+            pick = next((o for o in sorted(opts, key=lambda o: o["depart"]) if o["depart"] < cur["depart"] and hr(o, "depart") >= 7), None)
+        elif f["pref"] == "any":
+            pick = opts[0] if opts else None
+        if pick:
+            f["id"] = pick["id"]
+            dt = (pick.get("depart") or "")[11:16]
+            f["label"] += f" ({dt}, {rub(pick['total'])})" if dt else f" ({rub(pick['total'])})"
+        else:
+            c.pop("fix")
+
+
 def finalize(state: dict, resp: dict) -> dict:
+    _resolve_fixes(state)
     resp["requirements"] = requirements_view(state["req"], state["sources"])
     resp["candidates"] = state["candidates"] if state.get("plan") else {"destinations": state["candidates"].get("destinations", [])}
     resp["selected"] = state["selected"]

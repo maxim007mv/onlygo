@@ -7,33 +7,38 @@
 </head>
 <body>
 <header>
-  <div class="logo">Only<b>Go</b> <span>· О!дин запрос</span></div>
+  <div class="logo"><span class="dot">O!</span> Only<b>Go</b> <span class="sub">AI-тревел-агент · одним сообщением</span></div>
   <div class="hdr-right">
     <span id="mode" class="badge">…</span>
     <span class="badge mock" title="Все отели, рейсы и цены — синтетические данные">MOCK-данные</span>
-    <button id="newTrip" class="ghost">Новая поездка</button>
+    <button id="demoBtn" class="primary sm">▶ Демо-сценарий</button>
+    <button id="newTrip" class="ghost sm">Новая поездка</button>
   </div>
 </header>
+<nav id="tabs"><button data-t="chatCol" class="on">Чат</button><button data-t="side">План и корзина <span id="tabTotal"></span></button></nav>
 <main>
   <section id="chatCol">
     <div id="chat"></div>
+    <div id="demoBar" class="hidden"></div>
     <div id="examples">
-      <button class="ex">хочу куда-нибудь к тёплому морю в ноябре, недорого, с ребёнком, без долгих перелётов</button>
-      <button class="ex">из Питера в Казань на выходные вдвоём, бюджет до 40 тыс</button>
-      <button class="ex">на новогодние в горы покататься на лыжах, нас трое взрослых, без визы</button>
-      <button class="ex">романтическая поездка с девушкой, хорошая еда, всё равно куда</button>
+      <span class="hint">Попробуйте:</span>
+      <button class="ex" data-m="хочу куда-нибудь к тёплому морю в ноябре, недорого, с ребёнком, без долгих перелётов">🏖 Море с ребёнком в ноябре</button>
+      <button class="ex" data-m="из Питера в Казань на выходные вдвоём, бюджет до 40 тыс">🏙 Казань на выходные</button>
+      <button class="ex" data-m="на новогодние в горы покататься на лыжах, нас трое взрослых, без визы">⛷ Горы на Новый год</button>
+      <button class="ex" data-m="романтическая поездка с девушкой, хорошая еда, всё равно куда">💞 Романтика и еда</button>
+      <button class="ex" data-m="в Турцию всё включено в мае с собакой, бюджет 250 тысяч">🐕 Турция с собакой</button>
     </div>
-    <div id="edits">
-      <span>Правки:</span>
+    <div id="edits" class="hidden">
+      <span class="hint">Правки:</span>
       <button class="ed">на 2 дня позже</button><button class="ed">бюджет меньше</button>
-      <button class="ed">мы поедем с собакой</button><button class="ed">другой отель</button><button class="ed">другое направление</button>
+      <button class="ed">мы поедем с собакой</button><button class="ed">другой отель</button><button class="ed">другое направление</button><button class="ed">на 2 дня дольше</button>
     </div>
-    <form id="form"><input id="msg" autocomplete="off" placeholder="Опишите поездку одним сообщением…"><button>➤</button></form>
+    <form id="form"><input id="msg" autocomplete="off" placeholder="Опишите поездку одним сообщением: куда тянет, когда, с кем, бюджет…"><button aria-label="Отправить">➤</button></form>
   </section>
   <section id="side">
-    <div class="panel"><h3>Что я понял <small>(× — убрать условие)</small></h3><div id="reqs" class="chips muted">Пока ничего</div></div>
-    <div id="plan" class="panel hidden"></div>
-    <div class="panel"><h3>Логика агента <small>(вызовы инструментов)</small></h3><div id="trace" class="trace muted">—</div><div id="stats" class="stats"></div></div>
+    <div id="plan" class="panel"><h3>План поездки</h3><div class="empty">Здесь появится собранная поездка: таймлайн, проверка стыковок и корзина.</div></div>
+    <div class="panel"><h3>Что я понял <small>явно / неявно / по умолчанию · × — убрать</small></h3><div id="reqs" class="chips muted">Пока ничего</div></div>
+    <details class="panel" id="traceBox"><summary><b>Логика агента</b> <small class="muted">вызовы инструментов</small></summary><div id="trace" class="trace muted">—</div><div id="stats" class="stats"></div></details>
   </section>
 </main>
 <div id="modal" class="modal hidden"><div class="modal-box" id="modalBox"></div></div>
