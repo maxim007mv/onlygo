@@ -1,0 +1,28 @@
+# Run: cp .env.example .env && docker compose up --build  -> http://localhost:8080
+# Apple Silicon (M1/M2/M3): image is multi-arch-friendly; if you hit platform issues,
+# uncomment `platform: linux/amd64` below.
+services:
+  app:
+    build: .
+    # platform: linux/amd64
+    image: onlygo:local
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      APP_PORT: "8080"
+      DB_PATH: /data/onlygo.db
+    ports:
+      - "8080:8080"
+    volumes:
+      - onlygo-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=2).status==200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  onlygo-data:

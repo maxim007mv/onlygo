@@ -1,0 +1,627 @@
+[
+ {
+  "id": "sochi",
+  "name": "Сочи",
+  "country": "Россия",
+  "lat": 43.6,
+  "lon": 39.73,
+  "visa_free": true,
+  "airport": "AER",
+  "air_temp_jan": 10,
+  "air_temp_jul": 28,
+  "sea_temp_jan": 9,
+  "sea_temp_jul": 25,
+  "tags": [
+   "sea",
+   "beach",
+   "nature",
+   "city"
+  ],
+  "base_hotel_price": 6500,
+  "kid_score": 0.9,
+  "pet_score": 0.8,
+  "rainy_months": [
+   11,
+   12,
+   1
+  ],
+  "southern_tropics": false
+ },
+ {
+  "id": "gagra",
+  "name": "Гагра (Абхазия)",
+  "country": "Абхазия",
+  "lat": 43.28,
+  "lon": 40.27,
+  "visa_free": true,
+  "airport": "AER",
+  "air_temp_jan": 10,
+  "air_temp_jul": 29,
+  "sea_temp_jan": 10,
+  "sea_temp_jul": 26,
+  "tags": [
+   "sea",
+   "beach",
+   "nature",
+   "calm"
+  ],
+  "base_hotel_price": 4200,
+  "kid_score": 0.7,
+  "pet_score": 0.8,
+  "rainy_months": [
+   11,
+   12,
+   1
+  ],
+  "southern_tropics": false
+ },
+ {
+  "id": "antalya",
+  "name": "Анталья",
+  "country": "Турция",
+  "lat": 36.9,
+  "lon": 30.7,
+  "visa_free": true,
+  "airport": "AYT",
+  "air_temp_jan": 15,
+  "air_temp_jul": 34,
+  "sea_temp_jan": 17,
+  "sea_temp_jul": 28,
+  "tags": [
+   "sea",
+   "beach",
+   "allinclusive",
+   "party"
+  ],
+  "base_hotel_price": 7500,
+  "kid_score": 1.0,
+  "pet_score": 0.4,
+  "rainy_months": [
+   12,
+   1
+  ],
+  "southern_tropics": false
+ },
+ {
+  "id": "istanbul",
+  "name": "Стамбул",
+  "country": "Турция",
+  "lat": 41.01,
+  "lon": 28.97,
+  "visa_free": true,
+  "airport": "IST",
+  "air_temp_jan": 9,
+  "air_temp_jul": 29,
+  "sea_temp_jan": 9,
+  "sea_temp_jul": 24,
+  "tags": [
+   "city",
+   "culture",
+   "food"
+  ],
+  "base_hotel_price": 8000,
+  "kid_score": 0.6,
+  "pet_score": 0.3,
+  "rainy_months": [
+   12,
+   1,
+   2
+  ],
+  "southern_tropics": false
+ },
+ {
+  "id": "hurghada",
+  "name": "Хургада",
+  "country": "Египет",
+  "lat": 27.26,
+  "lon": 33.81,
+  "visa_free": true,
+  "airport": "HRG",
+  "air_temp_jan": 22,
+  "air_temp_jul": 35,
+  "sea_temp_jan": 22,
+  "sea_temp_jul": 28,
+  "tags": [
+   "sea",
+   "beach",
+   "allinclusive",
+   "diving"
+  ],
+  "base_hotel_price": 5200,
+  "kid_score": 0.9,
+  "pet_score": 0.2,
+  "rainy_months": [],
+  "southern_tropics": false
+ },
+ {
+  "id": "sharm",
+  "name": "Шарм-эль-Шейх",
+  "country": "Египет",
+  "lat": 27.91,
+  "lon": 34.33,
+  "visa_free": true,
+  "airport": "SSH",
+  "air_temp_jan": 22,
+  "air_temp_jul": 36,
+  "sea_temp_jan": 23,
+  "sea_temp_jul": 28,
+  "tags": [
+   "sea",
+   "beach",
+   "allinclusive",
+   "diving",
+   "calm"
+  ],
+  "base_hotel_price": 6000,
+  "kid_score": 0.9,
+  "pet_score": 0.2,
+  "rainy_months": [],
+  "southern_tropics": false
+ },
+ {
+  "id": "dubai",
+  "name": "Дубай",
+  "country": "ОАЭ",
+  "lat": 25.2,
+  "lon": 55.27,
+  "visa_free": true,
+  "airport": "DXB",
+  "air_temp_jan": 24,
+  "air_temp_jul": 41,
+  "sea_temp_jan": 22,
+  "sea_temp_jul": 33,
+  "tags": [
+   "sea",
+   "beach",
+   "city",
+   "luxury"
+  ],
+  "base_hotel_price": 14000,
+  "kid_score": 0.9,
+  "pet_score": 0.3,
+  "rainy_months": [],
+  "southern_tropics": false
+ },
+ {
+  "id": "rak",
+  "name": "Рас-эль-Хайма",
+  "country": "ОАЭ",
+  "lat": 25.79,
+  "lon": 55.94,
+  "visa_free": true,
+  "airport": "RKT",
+  "air_temp_jan": 23,
+  "air_temp_jul": 40,
+  "sea_temp_jan": 22,
+  "sea_temp_jul": 33,
+  "tags": [
+   "sea",
+   "beach",
+   "allinclusive",
+   "calm"
+  ],
+  "base_hotel_price": 9500,
+  "kid_score": 0.9,
+  "pet_score": 0.2,
+  "rainy_months": [],
+  "southern_tropics": false
+ },
+ {
+  "id": "phuket",
+  "name": "Пхукет",
+  "country": "Таиланд",
+  "lat": 7.88,
+  "lon": 98.39,
+  "visa_free": true,
+  "airport": "HKT",
+  "air_temp_jan": 32,
+  "air_temp_jul": 31,
+  "sea_temp_jan": 28,
+  "sea_temp_jul": 29,
+  "tags": [
+   "sea",
+   "beach",
+   "party",
+   "nature"
+  ],
+  "base_hotel_price": 7000,
+  "kid_score": 0.8,
+  "pet_score": 0.3,
+  "rainy_months": [
+   5,
+   6,
+   7,
+   8,
+   9,
+   10
+  ],
+  "southern_tropics": true
+ },
+ {
+  "id": "nhatrang",
+  "name": "Нячанг",
+  "country": "Вьетнам",
+  "lat": 12.24,
+  "lon": 109.19,
+  "visa_free": true,
+  "airport": "CXR",
+  "air_temp_jan": 27,
+  "air_temp_jul": 33,
+  "sea_temp_jan": 25,
+  "sea_temp_jul": 28,
+  "tags": [
+   "sea",
+   "beach",
+   "food"
+  ],
+  "base_hotel_price": 4800,
+  "kid_score": 0.8,
+  "pet_score": 0.2,
+  "rainy_months": [
+   10,
+   11,
+   12
+  ],
+  "southern_tropics": true
+ },
+ {
+  "id": "goa",
+  "name": "Гоа",
+  "country": "Индия",
+  "lat": 15.3,
+  "lon": 74.12,
+  "visa_free": false,
+  "airport": "GOX",
+  "air_temp_jan": 32,
+  "air_temp_jul": 30,
+  "sea_temp_jan": 27,
+  "sea_temp_jul": 28,
+  "tags": [
+   "sea",
+   "beach",
+   "party",
+   "calm"
+  ],
+  "base_hotel_price": 3800,
+  "kid_score": 0.6,
+  "pet_score": 0.3,
+  "rainy_months": [
+   6,
+   7,
+   8,
+   9
+  ],
+  "southern_tropics": true
+ },
+ {
+  "id": "maldives",
+  "name": "Мальдивы",
+  "country": "Мальдивы",
+  "lat": 4.17,
+  "lon": 73.5,
+  "visa_free": true,
+  "airport": "MLE",
+  "air_temp_jan": 30,
+  "air_temp_jul": 30,
+  "sea_temp_jan": 28,
+  "sea_temp_jul": 29,
+  "tags": [
+   "sea",
+   "beach",
+   "luxury",
+   "romantic",
+   "diving"
+  ],
+  "base_hotel_price": 32000,
+  "kid_score": 0.6,
+  "pet_score": 0.0,
+  "rainy_months": [
+   5,
+   6,
+   7,
+   8
+  ],
+  "southern_tropics": true
+ },
+ {
+  "id": "srilanka",
+  "name": "Хиккадува (Шри-Ланка)",
+  "country": "Шри-Ланка",
+  "lat": 6.14,
+  "lon": 80.1,
+  "visa_free": false,
+  "airport": "CMB",
+  "air_temp_jan": 30,
+  "air_temp_jul": 29,
+  "sea_temp_jan": 28,
+  "sea_temp_jul": 28,
+  "tags": [
+   "sea",
+   "beach",
+   "nature",
+   "surf"
+  ],
+  "base_hotel_price": 4500,
+  "kid_score": 0.6,
+  "pet_score": 0.2,
+  "rainy_months": [
+   5,
+   6,
+   10,
+   11
+  ],
+  "southern_tropics": true
+ },
+ {
+  "id": "zanzibar",
+  "name": "Занзибар",
+  "country": "Танзания",
+  "lat": -6.16,
+  "lon": 39.19,
+  "visa_free": false,
+  "airport": "ZNZ",
+  "air_temp_jan": 32,
+  "air_temp_jul": 28,
+  "sea_temp_jan": 29,
+  "sea_temp_jul": 26,
+  "tags": [
+   "sea",
+   "beach",
+   "romantic",
+   "nature"
+  ],
+  "base_hotel_price": 8500,
+  "kid_score": 0.5,
+  "pet_score": 0.1,
+  "rainy_months": [
+   4,
+   5,
+   11
+  ],
+  "southern_tropics": true
+ },
+ {
+  "id": "tenerife",
+  "name": "Тенерифе",
+  "country": "Испания",
+  "lat": 28.29,
+  "lon": -16.63,
+  "visa_free": false,
+  "airport": "TFS",
+  "air_temp_jan": 21,
+  "air_temp_jul": 28,
+  "sea_temp_jan": 19,
+  "sea_temp_jul": 23,
+  "tags": [
+   "sea",
+   "beach",
+   "nature"
+  ],
+  "base_hotel_price": 11000,
+  "kid_score": 0.8,
+  "pet_score": 0.5,
+  "rainy_months": [],
+  "southern_tropics": false
+ },
+ {
+  "id": "limassol",
+  "name": "Лимассол (Кипр)",
+  "country": "Кипр",
+  "lat": 34.7,
+  "lon": 33.04,
+  "visa_free": false,
+  "airport": "LCA",
+  "air_temp_jan": 17,
+  "air_temp_jul": 33,
+  "sea_temp_jan": 17,
+  "sea_temp_jul": 27,
+  "tags": [
+   "sea",
+   "beach",
+   "city",
+   "food"
+  ],
+  "base_hotel_price": 9000,
+  "kid_score": 0.8,
+  "pet_score": 0.5,
+  "rainy_months": [
+   12,
+   1,
+   2
+  ],
+  "southern_tropics": false
+ },
+ {
+  "id": "spb",
+  "name": "Санкт-Петербург",
+  "country": "Россия",
+  "lat": 59.94,
+  "lon": 30.31,
+  "visa_free": true,
+  "airport": "LED",
+  "air_temp_jan": -5,
+  "air_temp_jul": 23,
+  "sea_temp_jan": null,
+  "sea_temp_jul": null,
+  "tags": [
+   "city",
+   "culture",
+   "food",
+   "romantic"
+  ],
+  "base_hotel_price": 6000,
+  "kid_score": 0.7,
+  "pet_score": 0.7,
+  "rainy_months": [
+   10,
+   11
+  ],
+  "southern_tropics": false
+ },
+ {
+  "id": "kazan",
+  "name": "Казань",
+  "country": "Россия",
+  "lat": 55.79,
+  "lon": 49.12,
+  "visa_free": true,
+  "airport": "KZN",
+  "air_temp_jan": -11,
+  "air_temp_jul": 25,
+  "sea_temp_jan": null,
+  "sea_temp_jul": null,
+  "tags": [
+   "city",
+   "culture",
+   "food"
+  ],
+  "base_hotel_price": 5000,
+  "kid_score": 0.8,
+  "pet_score": 0.7,
+  "rainy_months": [],
+  "southern_tropics": false
+ },
+ {
+  "id": "kaliningrad",
+  "name": "Калининград",
+  "country": "Россия",
+  "lat": 54.71,
+  "lon": 20.51,
+  "visa_free": true,
+  "airport": "KGD",
+  "air_temp_jan": -1,
+  "air_temp_jul": 23,
+  "sea_temp_jan": 2,
+  "sea_temp_jul": 19,
+  "tags": [
+   "city",
+   "sea",
+   "nature",
+   "calm"
+  ],
+  "base_hotel_price": 5000,
+  "kid_score": 0.8,
+  "pet_score": 0.8,
+  "rainy_months": [
+   10,
+   11
+  ],
+  "southern_tropics": false
+ },
+ {
+  "id": "rosa",
+  "name": "Красная Поляна",
+  "country": "Россия",
+  "lat": 43.68,
+  "lon": 40.2,
+  "visa_free": true,
+  "airport": "AER",
+  "air_temp_jan": -2,
+  "air_temp_jul": 22,
+  "sea_temp_jan": null,
+  "sea_temp_jul": null,
+  "tags": [
+   "mountains",
+   "ski",
+   "nature"
+  ],
+  "base_hotel_price": 9000,
+  "kid_score": 0.8,
+  "pet_score": 0.7,
+  "rainy_months": [],
+  "southern_tropics": false
+ },
+ {
+  "id": "sheregesh",
+  "name": "Шерегеш",
+  "country": "Россия",
+  "lat": 52.92,
+  "lon": 87.99,
+  "visa_free": true,
+  "airport": "NOZ",
+  "air_temp_jan": -16,
+  "air_temp_jul": 18,
+  "sea_temp_jan": null,
+  "sea_temp_jul": null,
+  "tags": [
+   "mountains",
+   "ski",
+   "party"
+  ],
+  "base_hotel_price": 5500,
+  "kid_score": 0.6,
+  "pet_score": 0.6,
+  "rainy_months": [],
+  "southern_tropics": false
+ },
+ {
+  "id": "altai",
+  "name": "Горный Алтай",
+  "country": "Россия",
+  "lat": 51.96,
+  "lon": 85.96,
+  "visa_free": true,
+  "airport": "RGK",
+  "air_temp_jan": -15,
+  "air_temp_jul": 22,
+  "sea_temp_jan": null,
+  "sea_temp_jul": null,
+  "tags": [
+   "mountains",
+   "nature",
+   "calm"
+  ],
+  "base_hotel_price": 4500,
+  "kid_score": 0.7,
+  "pet_score": 0.9,
+  "rainy_months": [],
+  "southern_tropics": false
+ },
+ {
+  "id": "yerevan",
+  "name": "Ереван",
+  "country": "Армения",
+  "lat": 40.18,
+  "lon": 44.51,
+  "visa_free": true,
+  "airport": "EVN",
+  "air_temp_jan": -3,
+  "air_temp_jul": 34,
+  "sea_temp_jan": null,
+  "sea_temp_jul": null,
+  "tags": [
+   "city",
+   "food",
+   "culture"
+  ],
+  "base_hotel_price": 5000,
+  "kid_score": 0.7,
+  "pet_score": 0.5,
+  "rainy_months": [],
+  "southern_tropics": false
+ },
+ {
+  "id": "tbilisi",
+  "name": "Тбилиси",
+  "country": "Грузия",
+  "lat": 41.72,
+  "lon": 44.79,
+  "visa_free": true,
+  "airport": "TBS",
+  "air_temp_jan": 2,
+  "air_temp_jul": 30,
+  "sea_temp_jan": null,
+  "sea_temp_jul": null,
+  "tags": [
+   "city",
+   "food",
+   "culture",
+   "romantic"
+  ],
+  "base_hotel_price": 5200,
+  "kid_score": 0.7,
+  "pet_score": 0.5,
+  "rainy_months": [],
+  "southern_tropics": false
+ }
+]

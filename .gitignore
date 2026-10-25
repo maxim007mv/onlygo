@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+dist/
+build/
+*.db
+*.sqlite
+data/
+!app/data/
+tests/metrics_report.json
+.DS_Store
