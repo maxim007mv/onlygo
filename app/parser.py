@@ -1,17 +1,48 @@
 """Rule-based NL understanding (offline fallback). Extracts slots from Russian text.
 Returns only the slots that were actually mentioned (delta), so it can be merged
 into existing session state for incremental re-planning."""
+
 from __future__ import annotations
 
 import re
 from datetime import date, timedelta
 
 from . import datastore
+from .tools import today_local
 
-MONTHS = {"январ": 1, "феврал": 2, "март": 3, "апрел": 4, "ма[йея]": 5, "июн": 6, "июл": 7,
-          "август": 8, "сентябр": 9, "октябр": 10, "ноябр": 11, "декабр": 12}
-NUM_WORDS = {"один": 1, "одного": 1, "два": 2, "двух": 2, "две": 2, "двое": 2, "три": 3, "трёх": 3, "трех": 3,
-             "трое": 3, "четыре": 4, "четверо": 4, "пять": 5, "шесть": 6, "семь": 7, "десять": 10, "неделю": 7}
+MONTHS = {
+    "январ": 1,
+    "феврал": 2,
+    "март": 3,
+    "апрел": 4,
+    "ма[йея]": 5,
+    "июн": 6,
+    "июл": 7,
+    "август": 8,
+    "сентябр": 9,
+    "октябр": 10,
+    "ноябр": 11,
+    "декабр": 12,
+}
+NUM_WORDS = {
+    "один": 1,
+    "одного": 1,
+    "два": 2,
+    "двух": 2,
+    "две": 2,
+    "двое": 2,
+    "три": 3,
+    "трёх": 3,
+    "трех": 3,
+    "трое": 3,
+    "четыре": 4,
+    "четверо": 4,
+    "пять": 5,
+    "шесть": 6,
+    "семь": 7,
+    "десять": 10,
+    "неделю": 7,
+}
 
 MOODS = {
     "warm": r"тёпл|тепл|жарк|солнц|лето зимой",
@@ -80,7 +111,8 @@ def sanitize(delta: dict, today: date) -> dict:
                     continue
                 out[k] = d.isoformat()
             elif k == "month":
-                if 1 <= int(v) <= 12: out[k] = int(v)
+                if 1 <= int(v) <= 12:
+                    out[k] = int(v)
             elif k == "nights":
                 out[k] = min(MAX_NIGHTS, max(1, int(v)))
             elif k == "adults":
@@ -90,25 +122,36 @@ def sanitize(delta: dict, today: date) -> dict:
             elif k == "child_ages":
                 out[k] = [int(a) for a in v if 0 <= int(a) < 18][:MAX_CHILDREN]
             elif k == "budget":
-                if MIN_BUDGET <= float(v) <= MAX_BUDGET: out[k] = int(v)
+                if MIN_BUDGET <= float(v) <= MAX_BUDGET:
+                    out[k] = int(v)
             elif k in ("shift_days", "extend_nights"):
-                if int(v): out[k] = max(-60, min(60, int(v)))
+                if int(v):
+                    out[k] = max(-60, min(60, int(v)))
             elif k == "budget_factor":
-                if 0.3 <= float(v) <= 3: out[k] = float(v)
+                if 0.3 <= float(v) <= 3:
+                    out[k] = float(v)
             elif k == "max_travel_hours":
-                if 1 <= float(v) <= 30: out[k] = int(v)
+                if 1 <= float(v) <= 30:
+                    out[k] = round(float(v) * 2) / 2
             elif k == "meals":
-                if v in ("RO", "BB", "HB", "AI"): out[k] = v
+                if v in ("RO", "BB", "HB", "AI"):
+                    out[k] = v
             elif k in ("destination",):
-                if datastore.destination(str(v)): out[k] = str(v)
+                if datastore.destination(str(v)):
+                    out[k] = str(v)
             elif k == "exclude_destinations":
                 out[k] = [x for x in v if datastore.destination(str(x))]
             elif k == "origin":
-                if any(o["id"] == v for o in datastore.origins()): out[k] = v
+                if any(o["id"] == v for o in datastore.origins()):
+                    out[k] = v
             elif k == "moods":
                 out[k] = [m for m in v if m in MOODS]
             elif k in ("country",):
-                if isinstance(v, str) and v: out[k] = v
+                if isinstance(v, str) and v:
+                    out[k] = v
+            elif k == "unknown_place":
+                if isinstance(v, str) and v:
+                    out[k] = v[:40]
             elif k == "implicit_notes":
                 out[k] = [str(x)[:200] for x in v][:5]
             elif isinstance(v, bool):
@@ -120,14 +163,71 @@ def sanitize(delta: dict, today: date) -> dict:
     return out
 
 
-def parse(text: str, today: date | None = None, state: dict | None = None) -> dict:
-    today = today or date.today()
-    t = " " + text.lower().replace("ё", "е") + " "
-    tt = " " + text.lower() + " "
-    s: dict = {}
-    state = state or {}
+# Popular places the user may name that are NOT in the demo catalogue: answer honestly instead of silently
+# substituting another city. Stem -> display name.
+UNKNOWN_PLACES = {
+    "париж": "Париж",
+    "рим": "Рим",
+    "лондон": "Лондон",
+    "барселон": "Барселона",
+    "праг": "Прага",
+    "берлин": "Берлин",
+    "мадрид": "Мадрид",
+    "милан": "Милан",
+    "вену": "Вена",
+    "амстердам": "Амстердам",
+    "нью-йорк": "Нью-Йорк",
+    "токио": "Токио",
+    "бали": "Бали",
+    "сеул": "Сеул",
+    "пекин": "Пекин",
+    "баку": "Баку",
+    "минск": "Минск",
+    "ташкент": "Ташкент",
+    "самарканд": "Самарканд",
+    "владивосток": "Владивосток",
+    "байкал": "Байкал",
+    "мурманск": "Мурманск",
+    "камчатк": "Камчатка",
+}
+DEST_ALIASES = {"spb": ("питер", "спб", "петербург"), "rosa": ("роза хутор", "красную поляну"), "limassol": ("кипр",), "gagra": ("абхази",)}
+TO = r"(?:\bв|\bво|\bдо|\bна)\s+"
+NUM = r"\d+(?:[.,]\d+)?"
+WORD_NUMS = "один|одну|два|две|три|четыре|пять|неделю|пару"
+DEFAULT_SHORT_HOURS = 5  # «без долгих перелётов» without a number
 
-    # ---- relative modifications (re-planning) ----
+
+def _to_float(s: str) -> float:
+    return float(s.replace(",", "."))
+
+
+def parse(text: str, today: date | None = None, state: dict | None = None) -> dict:
+    """Extract the slots mentioned in `text` (a delta to merge into session state)."""
+    today = today or today_local()
+    state = state or {}
+    t = " " + text.lower().replace("ё", "е") + " "
+    s: dict = {}
+    _parse_replan(t, s)
+    _parse_dates(t, today, s)
+    _parse_duration(t, s)
+    if (
+        re.search(r"\b(не знаю|без разницы|все равно|любые даты|неважно|не важно)\b", t)
+        and not state.get("start_date")
+        and "start_date" not in s
+    ):
+        s["dates_flexible"] = True
+    _parse_budget(t, s)
+    _parse_guests(t, s, state)
+    _parse_constraints(t, s)
+    _parse_origin(t, s)
+    moods = [k for k, p in MOODS.items() if re.search(p, t)]
+    if moods:
+        s["moods"] = moods
+    _parse_destination(t, s)
+    return s
+
+
+def _parse_replan(t: str, s: dict) -> None:
     m = re.search(r"на (\d+|один|два|три|четыре|пять|неделю) (?:дн[яейь]*|день|сут\w*)? ?(позже|раньше)", t)
     if m:
         n = _num(m.group(1)) or 1
@@ -136,52 +236,71 @@ def parse(text: str, today: date | None = None, state: dict | None = None) -> di
     if m:
         n = _num(m.group(1)) or 1
         s["extend_nights"] = n if m.group(2) in ("дольше", "больше") else -n
-    if re.search(r"(бюджет|подешевле|дешевле|меньше денег|бюджет меньше|урез|экономн)", t) and re.search(r"меньш|дешевл|урез|экономн|сократ", t):
+    if re.search(r"(бюджет|подешевле|дешевле|меньше денег|урез|экономн)", t) and re.search(r"меньш|дешевл|урез|экономн|сократ", t):
         s["budget_factor"] = 0.8
     if re.search(r"(можно|готов\w*) (подороже|дороже)|бюджет больше|увелич\w* бюджет", t):
         s["budget_factor"] = 1.25
+    if re.search(r"другое направление|другую страну|не нравится направление|куда-нибудь еще", t):
+        s["change_destination"] = True
+    if re.search(r"другой отель|другую гостиниц|не нравится отель", t):
+        s["change_hotel"] = True
 
-    # ---- dates ----
+
+def _find_month(t: str) -> int | None:
+    return next((num for pat, num in MONTHS.items() if re.search(r"\b" + pat, t)), None)
+
+
+def _parse_dates(t: str, today: date, s: dict) -> None:
+    month = _find_month(t)
+    if not (month and _parse_word_range(t, month, today, s)) and not _parse_numeric_date(t, today, s) and month:
+        s["month"], s["start_date"] = month, _month_start(month, today).isoformat()
+    _parse_named_dates(t, today, s)
+
+
+def _parse_word_range(t: str, month: int, today: date, s: dict) -> bool:
+    """«с 3 по 10 ноября», «с 28 декабря по 5 января»."""
     m = re.search(r"с (\d{1,2})(?:\s*(\w+))? по (\d{1,2}) (\w+)", t)
-    month_found = None
-    for pat, num in MONTHS.items():
-        if re.search(r"\b" + pat, t):
-            month_found = num
-            break
-    if m and month_found:
-        d1, d2 = int(m.group(1)), int(m.group(3))
-        mo2 = month_found
-        mo1 = mo2
-        for pat, num in MONTHS.items():
-            if m.group(2) and re.match(pat, m.group(2)):
-                mo1 = num
-        start = _safe_date(today.year, mo1, d1)
-        if start:
-            start = _future(start, today)
-            end = _safe_date(start.year, mo2, d2)
-            if end and end <= start:
-                end = _safe_date(start.year + 1, mo2, d2)
-            if end:
-                s["start_date"], s["nights"] = start.isoformat(), min(MAX_NIGHTS, max(1, (end - start).days))
-                s["month"] = mo1
-    num = re.search(r"(?:с\s*)?(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?(?:\s*(?:по|-|–|до)\s*(\d{1,2})\.(\d{1,2})(?:\.\d{2,4})?)?(?![\d.])(?!\s*(?:ч|час|тыс|млн|к\b|%|руб|₽))", t)
-    if num and not (m and month_found):
-        start = _safe_date(today.year, int(num.group(2)), int(num.group(1)))
-        if start:
-            if num.group(3):
-                yy = int(num.group(3)); yy = yy + 2000 if yy < 100 else yy
-                start = _safe_date(yy, start.month, start.day) or start
-            start = _future(start, today)
-            s["start_date"], s["month"] = start.isoformat(), start.month
-            if num.group(4):
-                end = _safe_date(start.year, int(num.group(5)), int(num.group(4)))
-                if end and end <= start:
-                    end = _safe_date(start.year + 1, end.month, end.day)
-                if end:
-                    s["nights"] = min(MAX_NIGHTS, max(1, (end - start).days))
-    elif month_found and not (m and "start_date" in s):
-        s["month"] = month_found
-        s["start_date"] = _month_start(month_found, today).isoformat()
+    if not m:
+        return False
+    mo1 = next((num for pat, num in MONTHS.items() if m.group(2) and re.match(pat, m.group(2))), month)
+    start = _safe_date(today.year, mo1, int(m.group(1)))
+    if not start:
+        return False
+    start = _future(start, today)
+    end = _safe_date(start.year, month, int(m.group(3)))
+    if end and end <= start:
+        end = _safe_date(start.year + 1, month, int(m.group(3)))
+    if not end:
+        return False
+    s["start_date"], s["nights"], s["month"] = start.isoformat(), min(MAX_NIGHTS, max(1, (end - start).days)), mo1
+    return True
+
+
+def _parse_numeric_date(t: str, today: date, s: dict) -> bool:
+    """«10.12», «3.01.2027», «с 10.12 по 15.12» — but not «2.5 часа» / «150.000 ₽»."""
+    num = re.search(
+        r"(?:с\s*)?(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?(?:\s*(?:по|-|–|до)\s*(\d{1,2})\.(\d{1,2})(?:\.\d{2,4})?)?"
+        r"(?![\d.])(?!\s*(?:ч|час|недел|дн|тыс|млн|к\b|%|руб|₽))",
+        t,
+    )
+    start = num and _safe_date(today.year, int(num.group(2)), int(num.group(1)))
+    if not start:
+        return False
+    if num.group(3):
+        yy = int(num.group(3))
+        start = _safe_date(yy + 2000 if yy < 100 else yy, start.month, start.day) or start
+    start = _future(start, today)
+    s["start_date"], s["month"] = start.isoformat(), start.month
+    if num.group(4):
+        end = _safe_date(start.year, int(num.group(5)), int(num.group(4)))
+        if end and end <= start:
+            end = _safe_date(start.year + 1, end.month, end.day)
+        if end:
+            s["nights"] = min(MAX_NIGHTS, max(1, (end - start).days))
+    return True
+
+
+def _parse_named_dates(t: str, today: date, s: dict) -> None:
     if re.search(r"новый год|новогодн", t):
         ny = _future(date(today.year, 12, 29), today)
         s["start_date"], s["month"] = ny.isoformat(), 12
@@ -192,37 +311,47 @@ def parse(text: str, today: date | None = None, state: dict | None = None) -> di
     if re.search(r"(в ближайш|скоро|на следующей неделе|через неделю|как можно скорее)", t):
         d = today + timedelta(days=7)
         s["start_date"], s["month"] = d.isoformat(), d.month
-    m = re.search(r"на (\d+|одну|две|три|неделю|две недели|пару) ?(недел\w*|дн[яейь]*|ноч\w*|сут\w*)?", t)
-    if m and "shift_days" not in s and "extend_nights" not in s:
-        raw, unit = m.group(1), (m.group(2) or "")
-        if raw == "неделю":
-            s["nights"] = 7
-        elif raw == "две недели" or (raw in ("две", "2") and unit.startswith("недел")):
-            s["nights"] = 14
-        elif unit.startswith("недел"):
-            s["nights"] = 7 * (_num(raw) or 1)
-        elif unit.startswith(("дн", "ноч", "сут")):
-            n = _num(raw) if raw != "пару" else 2
-            if n:
-                s["nights"] = n if unit.startswith("ноч") else max(1, n - 1)
-    if re.search(r"\b(не знаю|без разницы|все равно|любые даты|неважно|не важно)\b", t) and not state.get("start_date") and "start_date" not in s:
-        s["dates_flexible"] = True
+    if re.search(r"после сесси", t) and "start_date" not in s:
+        # winter exams end ~25 Jan, summer ones ~30 Jun
+        d = _future(date(today.year, 1, 26), today) if today.month >= 9 or today.month == 1 else _future(date(today.year, 7, 1), today)
+        s["start_date"], s["month"] = d.isoformat(), d.month
 
-    # ---- budget ----
-    m = re.search(r"(\d[\d\s]*[.,]?\d*)\s*(тыс\w*|т\.р|к\b|k\b|000|руб|₽|р\b)", t)
-    if m and re.search(r"бюджет|до |за |не дороже|в пределах|рубл|₽|тыс", t):
-        num = float(m.group(1).replace(" ", "").replace(",", "."))
-        unit = m.group(2)
-        val = num * 1000 if unit.startswith(("тыс", "т.р", "к", "k")) else num
-        if unit == "000":
-            val = num * 1000
-        if 5000 <= val <= 5_000_000:
+
+def _parse_duration(t: str, s: dict) -> None:
+    if "shift_days" in s or "extend_nights" in s:
+        return
+    m = re.search(rf"на ({NUM}|{WORD_NUMS}|две недели) ?(недел\w*|дн[яейь]*|ноч\w*|сут\w*)?", t)
+    if not m:
+        return
+    raw, unit = m.group(1), (m.group(2) or "")
+    if raw == "неделю":
+        s["nights"] = 7
+    elif raw == "две недели":
+        s["nights"] = 14
+    elif unit.startswith("недел"):
+        n = _to_float(raw) if re.fullmatch(NUM, raw) else (_num(raw) or 1)
+        s["nights"] = min(MAX_NIGHTS, round(7 * n))
+    elif unit.startswith(("дн", "ноч", "сут")):
+        n = 2 if raw == "пару" else (round(_to_float(raw)) if re.fullmatch(NUM, raw) else _num(raw))
+        if n:
+            s["nights"] = n if unit.startswith("ноч") else max(1, n - 1)
+
+
+def _parse_budget(t: str, s: dict) -> None:
+    # «150.000» / «150 000» are thousands separators, not decimals
+    tb = re.sub(r"(?<=\d)[ .](?=\d{3}(?!\d))", "", t)
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*(тыс\w*|т\.р|к\b|k\b|000|руб|₽|р\b)", tb)
+    if m and re.search(r"бюджет|до |за |не дороже|в пределах|рубл|₽|тыс", tb):
+        num, unit = _to_float(m.group(1)), m.group(2)
+        val = num * 1000 if unit.startswith(("тыс", "т.р", "к", "k", "000")) else num
+        if MIN_BUDGET <= val <= MAX_BUDGET:
             s["budget"] = int(val)
     if re.search(r"недорог|дешев|бюджетн|эконом|подешевле", t) and "budget_factor" not in s:
         s["price_sensitive"] = True
 
-    # ---- guests ----
-    if re.search(r"с ребенком|с ребёнком|с сыном|с дочк|с дочерью|с малыш", tt.replace("ё", "е")):
+
+def _parse_guests(t: str, s: dict, state: dict) -> None:
+    if re.search(r"с ребенком|с сыном|с дочк|с дочерью|с малыш", t):
         s["children"] = 1
     m = re.search(r"(\d|двое|двумя|трое|тремя|два|двух|три|трех) (?:детьми|детей|ребенка|ребят)", t)
     if m:
@@ -234,7 +363,7 @@ def parse(text: str, today: date | None = None, state: dict | None = None) -> di
         ages += [int(x) for x in re.findall(r"\d{1,2}", grp) if int(x) < 18]
     if ages:
         s["child_ages"] = ages
-        s.setdefault("children", max(len(ages), state.get("children") or 0) or len(ages))
+        s.setdefault("children", max(len(ages), state.get("children") or 0))
     if re.search(r"\bбез (ребенка|детей)\b", t):
         s["children"], s["child_ages"] = 0, []
     if re.search(r"вдвоем|с женой|с мужем|с девушкой|с парнем|с подругой|с другом|пара\b|для двоих", t):
@@ -247,20 +376,20 @@ def parse(text: str, today: date | None = None, state: dict | None = None) -> di
     if re.search(r"собак|пес |псом|щен|кошк|кот[оа ]|питом|животн", t):
         s["pets"] = not re.search(r"без (собак|кошк|питом|животн)", t)
 
-    # ---- constraints ----
-    if re.search(r"без долг\w* перел|недалеко|недолг\w* перел|коротк\w* перел|не больше (\d+) час|близко", t):
-        mh = re.search(r"не (?:больше|дольше|более) (\d+) ?час", t)
-        s["max_travel_hours"] = int(mh.group(1)) if mh else 5
-    mh = re.search(r"перел[её]т\w* до (\d+) ?час", t)
-    if mh:
-        s["max_travel_hours"] = int(mh.group(1))
+
+def _parse_constraints(t: str, s: dict) -> None:
+    mh = re.search(rf"(?:не (?:больше|дольше|более)|до|максимум) ({NUM}) ?час", t)
+    if mh and re.search(r"перел|дорог|лет[еи]|в пути|не (больше|дольше|более)", t):
+        s["max_travel_hours"] = _to_float(mh.group(1))
+    elif re.search(r"без долг\w* перел|недалеко|недолг\w* перел|коротк\w* перел|близко", t):
+        s["max_travel_hours"] = DEFAULT_SHORT_HOURS
     if re.search(r"без пересад|прям\w* рейс", t):
         s["direct_only"] = True
     if re.search(r"без виз|безвиз", t):
         s["visa_free_only"] = True
     if re.search(r"на поезде|поездом|не люблю летать|боюсь летать|без самол", t):
         s["prefer_train"] = True
-    if re.search(r"все включено|всё включено|олл ?инклюзив|all ?inclusive", t):
+    if re.search(r"все включено|олл ?инклюзив|all ?inclusive", t):
         s["meals"] = "AI"
     elif re.search(r"с завтрак", t):
         s["meals"] = "BB"
@@ -273,35 +402,36 @@ def parse(text: str, today: date | None = None, state: dict | None = None) -> di
     if re.search(r"в центре|центр города", t):
         s["center_close"] = True
 
-    # ---- origin ----
-    m = re.search(r"\bиз ([а-яё\-]+)", t)
-    if m:
-        for o in datastore.origins():
-            if any(m.group(1).startswith(a) for a in o["aliases"]):
-                s["origin"] = o["id"]
 
-    # ---- moods ----
-    moods = [k for k, p in MOODS.items() if re.search(p, t)]
-    if moods:
-        s["moods"] = moods
+def _parse_origin(t: str, s: dict) -> None:
+    m = re.search(r"\bиз ([а-я\-]+)", t)
+    if not m:
+        return
+    for o in datastore.origins():
+        if any(m.group(1).startswith(a) for a in o["aliases"]):
+            s["origin"] = o["id"]
 
-    # ---- explicit destination ----
+
+def _parse_destination(t: str, s: dict) -> None:
     countries = {d["country"] for d in datastore.destinations() if d["country"] != "Россия"}
     for cn in countries:
         stem = cn.lower()[:-1] if len(cn) > 4 else cn.lower()
         if re.search(r"\b" + re.escape(stem), t):
             s["country"] = cn
+    for did, aliases in DEST_ALIASES.items():
+        if any(re.search(TO + re.escape(a), t) for a in aliases):
+            s["destination"] = did
+            return
     for d in datastore.destinations():
         key = d["name"].lower().replace("ё", "е").split(" (")[0]
-        stem = key[:-1] if len(key) > 5 else key
-        if re.search(r"\b" + re.escape(stem), t) or re.search(re.escape(d["country"].lower()[:-1]), t) and len(d["country"]) > 4:
-            if re.search(r"не (хочу |надо )?(в |на )?" + re.escape(stem), t) or re.search(r"кроме " + re.escape(stem), t):
-                s.setdefault("exclude_destinations", []).append(d["id"])
-            elif re.search(r"\b" + re.escape(stem), t):
-                s["destination"] = d["id"]
-                break
-    if re.search(r"другое направление|другую страну|не нравится направление|куда-нибудь еще", t):
-        s["change_destination"] = True
-    if re.search(r"другой отель|другую гостиниц|не нравится отель", t):
-        s["change_hotel"] = True
-    return s
+        stem = re.escape(key[:-1] if len(key) > 5 else key)
+        if not re.search(r"\b" + stem, t):
+            continue
+        if re.search(r"не (хочу |надо )?(в |на )?" + stem, t) or re.search(r"кроме " + stem, t):
+            s.setdefault("exclude_destinations", []).append(d["id"])
+        elif not re.search(r"\bиз " + stem, t):
+            s["destination"] = d["id"]
+            return
+    unknown = next((name for stem, name in UNKNOWN_PLACES.items() if re.search(TO + re.escape(stem), t)), None)
+    if unknown:
+        s["unknown_place"] = unknown

@@ -1,28 +1,39 @@
 """FastAPI app: chat UI at /, JSON API under /api, health at /health."""
+
 from __future__ import annotations
 
 import logging
 import os
 import threading
+import time
 import uuid
-from collections import defaultdict
+from collections import defaultdict, deque
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from typing import Literal
-
 from pydantic import BaseModel, Field
 
-from . import agent, datastore, db, llm, tools
+from . import agent, datastore, db, llm, tools, trip
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("onlygo")
 STATIC = Path(__file__).parent / "static"
-app = FastAPI(title="OnlyGo — О!дин запрос", version="0.1.0")
+
+
+@asynccontextmanager
+async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+    log.info("purged %d stale sessions (ttl=%sd)", db.purge_sessions(), db.SESSION_TTL_DAYS)
+    yield
+
+
+app = FastAPI(title="OnlyGo — О!дин запрос", version="0.1.0", lifespan=_lifespan)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
@@ -31,6 +42,8 @@ ID = dict(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.:\-]+$")
 SelectKind = Literal["destination", "hotel", "outbound", "return", "transfer_out", "transfer_ret"]
 PostAction = Literal["early_checkin", "late_checkout", "change_dates", "reminder", "add_transfer"]
 MAX_DATE_SHIFT = 30
+RATE_LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MIN", "120"))  # per client IP on /api/*; 0 disables
+PURGE_EVERY_SAVES = 200  # run session TTL cleanup every N chat turns
 
 
 class ChatIn(BaseModel):
@@ -74,6 +87,43 @@ def session_lock(sid: str) -> threading.Lock:
         if len(_session_locks) > 10_000:
             _session_locks.clear()
         return _session_locks[sid]
+
+
+_hits: defaultdict[str, deque] = defaultdict(deque)
+_hits_guard = threading.Lock()
+_chat_saves = 0
+
+
+def rate_limited(client: str, now: float | None = None, limit: int | None = None) -> bool:
+    """Sliding 60-s window per client. In-memory: enough for one demo process (Redis for several workers)."""
+    limit = RATE_LIMIT_PER_MIN if limit is None else limit
+    if limit <= 0:
+        return False
+    now = time.monotonic() if now is None else now
+    with _hits_guard:
+        if len(_hits) > 10_000:  # bound memory under many distinct IPs
+            _hits.clear()
+        q = _hits[client]
+        while q and now - q[0] > 60:
+            q.popleft()
+        if len(q) >= limit:
+            return True
+        q.append(now)
+    return False
+
+
+@app.middleware("http")
+async def _rate_limit(request: Request, call_next):
+    if request.url.path.startswith("/api/") and rate_limited(request.client.host if request.client else "?"):
+        return JSONResponse(status_code=429, content={"detail": "Слишком много запросов — подождите минуту"})
+    return await call_next(request)
+
+
+def _maybe_purge() -> None:
+    global _chat_saves
+    _chat_saves += 1
+    if _chat_saves % PURGE_EVERY_SAVES == 0:
+        db.purge_sessions()
 
 
 @app.exception_handler(agent.AgentInputError)
@@ -125,8 +175,12 @@ def index():
 
 @app.get("/api/config")
 def config():
-    return {"mode": "llm" if llm.enabled() else "offline", "model": llm.model() if llm.enabled() else None,
-            "data": "synthetic/mock", "destinations": len(datastore.destinations())}
+    return {
+        "mode": "llm" if llm.enabled() else "offline",
+        "model": llm.model() if llm.enabled() else None,
+        "data": "synthetic/mock",
+        "destinations": len(datastore.destinations()),
+    }
 
 
 @app.post("/api/chat")
@@ -141,6 +195,7 @@ def chat(inp: ChatIn):
         resp = agent.handle_message(state, text, profile)
         db.save_session(sid, inp.user_id, state)
         _remember(inp.user_id, state)
+    _maybe_purge()
     log.info("chat sid=%s turn=%s plan=%s q=%d", sid, state["turns"], bool(resp.get("plan")), len(resp["questions"]))
     return {"session_id": sid, **resp}
 
@@ -191,7 +246,7 @@ def _checkout(inp: CheckoutIn):
     if prev and prev.get("plan_sig") == _plan_sig(p):  # double click / retry → same booking, no second charge
         old = db.get_booking(prev["booking_id"]) or {}
         return {**{k: v for k, v in old.items() if k not in ("plan", "payer", "actions", "session_id")}, "duplicate": True}
-    res = tools.simulate_payment(p, {"name": inp.name, "email": inp.email, "card": inp.card})
+    res = trip.simulate_payment(p, {"name": inp.name, "email": inp.email, "card": inp.card})
     if res["status"] == "paid":
         booking = {**res, "session_id": inp.session_id, "plan": p, "payer": {"name": inp.name, "email": inp.email}, "actions": []}
         db.save_booking(res["booking_id"], inp.session_id, db.session_user(inp.session_id), booking)
@@ -209,30 +264,47 @@ def post_purchase(inp: PostIn):
     hotel = datastore.hotel(next((i.get("id") for i in p["items"] if i["kind"] == "hotel"), ""))
     if not hotel:
         raise HTTPException(409, "В бронировании нет отеля")
-    start = date.fromisoformat(p["start_date"])
-    if inp.action == "early_checkin":
-        ok = hotel["early_checkin_available"]
-        msg = f"Запрос на ранний заезд отправлен в {hotel['name']} (симуляция): " + ("отель подтвердил заезд с 10:00, доплата 30% ночи." if ok else "ранний заезд не гарантирован, отель ответит за сутки.")
-    elif inp.action == "late_checkout":
-        msg = f"Запрос на поздний выезд до 18:00 отправлен в {hotel['name']} (симуляция)."
-    elif inp.action == "change_dates":
-        try:
-            shift = int(inp.value or 1)
-        except ValueError:
-            raise HTTPException(422, "value для change_dates — целое число дней") from None
-        if not shift or abs(shift) > MAX_DATE_SHIFT:
-            raise HTTPException(422, f"Сдвиг дат: от -{MAX_DATE_SHIFT} до {MAX_DATE_SHIFT} дней, не 0")
-        free = hotel["free_cancellation"]
-        msg = f"Перенос на {shift:+d} дн. ({(start + timedelta(days=shift)):%d.%m}): " + ("отель меняет даты бесплатно; авиабилеты — по тарифу, разница пересчитана (симуляция)." if free else "тариф отеля невозвратный — возможен штраф. Рекомендую пересобрать план в чате: «на %d дня позже»." % shift)
-    elif inp.action == "reminder":
-        msg = f"Напоминания созданы: онлайн-регистрация за 24 ч до вылета, выезд в аэропорт, документы — {(start - timedelta(days=3)):%d.%m} (симуляция)."
-    elif inp.action == "add_transfer":
-        msg = "Трансфер привязан к адресу отеля и номеру рейса; водитель будет ждать с табличкой (симуляция)."
-    else:
-        raise HTTPException(400, "unknown action")
-    b["actions"].append({"action": inp.action, "message": msg, "at": datetime.now().isoformat(timespec="seconds")})
+    msg = _post_message(inp.action, hotel, date.fromisoformat(p["start_date"]), inp.value)
+    b["actions"].append({"action": inp.action, "message": msg, "at": datetime.now(tools.LOCAL_TZ).isoformat(timespec="seconds")})
     db.save_booking(inp.booking_id, b["session_id"], db.session_user(b["session_id"]), b)
     return {"booking_id": inp.booking_id, "message": msg, "actions": b["actions"]}
+
+
+def _parse_shift(value: str | None) -> int:
+    try:
+        shift = int(value or 1)
+    except ValueError:
+        raise HTTPException(422, "value для change_dates — целое число дней") from None
+    if not shift or abs(shift) > MAX_DATE_SHIFT:
+        raise HTTPException(422, f"Сдвиг дат: от -{MAX_DATE_SHIFT} до {MAX_DATE_SHIFT} дней, не 0")
+    return shift
+
+
+def _post_message(action: str, hotel: dict, start: date, value: str | None) -> str:
+    """Simulated after-sale actions; every message says «симуляция»."""
+    name = hotel["name"]
+    if action == "early_checkin":
+        ok = hotel["early_checkin_available"]
+        answer = "отель подтвердил заезд с 10:00, доплата 30% ночи." if ok else "ранний заезд не гарантирован, отель ответит за сутки."
+        return f"Запрос на ранний заезд отправлен в {name} (симуляция): {answer}"
+    if action == "late_checkout":
+        return f"Запрос на поздний выезд до 18:00 отправлен в {name} (симуляция)."
+    if action == "change_dates":
+        shift = _parse_shift(value)
+        tail = (
+            "отель меняет даты бесплатно; авиабилеты — по тарифу, разница пересчитана (симуляция)."
+            if hotel["free_cancellation"]
+            else f"тариф отеля невозвратный — возможен штраф. Рекомендую пересобрать план в чате: «на {shift} дня позже»."
+        )
+        return f"Перенос на {shift:+d} дн. ({(start + timedelta(days=shift)):%d.%m}): {tail}"
+    if action == "reminder":
+        return (
+            f"Напоминания созданы: онлайн-регистрация за 24 ч до вылета, выезд в аэропорт, документы — "
+            f"{(start - timedelta(days=3)):%d.%m} (симуляция)."
+        )
+    if action == "add_transfer":
+        return "Трансфер привязан к адресу отеля и номеру рейса; водитель будет ждать с табличкой (симуляция)."
+    raise HTTPException(400, "unknown action")
 
 
 @app.get("/api/profile/{uid}")
