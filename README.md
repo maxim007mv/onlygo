@@ -23,6 +23,12 @@ docker compose up --build
 
 **Apple Silicon (M1/M2/M3):** базовый образ `python:3.12.8-slim-bookworm` мультиархитектурный и собирается нативно. Если нужна сборка именно под amd64 — раскомментируйте `platform: linux/amd64` в `docker-compose.yml`.
 
+## Честность и «один запрос»
+
+- Если направление и длительность понятны («в Сочи на 3 дня»), агент не останавливается на вопросе про даты: берёт ближайшие и пишет об этом.
+- Неизвестный город («Париж») не подменяется молча: агент говорит, что его нет в демо-каталоге (данные синтетические).
+- Если бюджет или лимит перелёта не выполнимы, это сказано прямо в ответе, с вариантами, что поменять.
+
 ## Демо-сценарий (1 клик)
 
 - В UI: кнопка **«▶ Демо-сценарий»** в шапке или ссылка `http://localhost:8080/?demo=1`. Агент сам проходит весь путь с прогресс-баром:
@@ -75,6 +81,9 @@ docker compose up --build
 | `APP_PORT` | `8080` | порт внутри контейнера |
 | `DB_PATH` | `/data/onlygo.db` | путь к SQLite (сессии, профиль/память, брони) |
 | `LOG_LEVEL` | `INFO` | уровень логов (stdout) |
+| `APP_TZ` | `Europe/Moscow` | часовой пояс для «сегодня», дат оплаты и действий |
+| `SESSION_TTL_DAYS` | `14` | сессии старше удаляются (брони и профили остаются) |
+| `RATE_LIMIT_PER_MIN` | `120` | лимит запросов к `/api/*` с одного IP в минуту, `0` выключает |
 
 **Два режима (виден бейджем в шапке UI и в `GET /api/config`):**
 - **LLM** — если задан `OPENAI_API_KEY`: LLM извлекает требования (JSON-слоты + «неявные потребности») и пишет объяснение рекомендаций. Правила дополняют LLM (страховка от пропусков). Любая ошибка LLM → автоматический откат на правила.
@@ -138,16 +147,18 @@ docker compose exec app python tests/run_metrics.py
 # против запущенного сервера / локально
 python tests/run_metrics.py --url http://localhost:8080
 # unit/e2e (локально): pip install -r requirements-dev.txt && pytest -q
+# линтер и форматирование
+ruff check . && ruff format --check .
 # сквозной демо-сценарий против сервера
 python scripts/demo_e2e.py
 ```
 
-`tests/queries.json` — 10 диалогов (от «хочу отдохнуть» до точных дат). Метрики: **completion rate** (план собран + оплата прошла), **среднее число уточнений**, **ходов до первой рекомендации**, **time-to-first-recommendation**, **ошибки стыковок**, **попадание в ожидания** (море/лимит перелёта/направление), **успех пересборки** («на 2 дня позже» с переиспользованием шагов).
+`tests/queries.json` — 10 диалогов (от «хочу отдохнуть» до точных дат). Метрики: **completion rate** (план собран + оплата прошла), **среднее число уточнений**, **ходов до первой рекомендации**, **time-to-first-recommendation**, **ошибки стыковок**, **попадание в ожидания** (море/лимит перелёта/направление), **успех пересборки** («на 2 дня позже» даёт новый план) и **доля частичной пересборки** (часть шагов переиспользована; при смене месяца честно пересчитывается всё).
 
 Текущий результат (offline-режим):
 ```
 completion_rate 1.0 · avg_clarifications 0.5 · avg_turns_to_first_rec 1.2
-median_time_to_first_rec_ms ~8 · connection_errors_total 0 · expectation_hit_rate 1.0 · replan_success_rate 0.8
+median_time_to_first_rec_ms ~8 · connection_errors_total 0 · expectation_hit_rate 1.0 · replan_success_rate 1.0 · replan_partial_reuse_rate 0.8
 ```
 
 ## Структура
@@ -157,7 +168,8 @@ app/main.py        FastAPI, маршруты
 app/agent.py       оркестратор: понимание → уточнения → план → пересборка, трейс
 app/parser.py      rule-based NLU (offline)
 app/llm.py         OpenAI-совместимый клиент (env), fallback
-app/tools.py       инструменты: suggest_destinations, search_hotels, search_transport, search_transfers, assemble_trip, simulate_payment
+app/tools.py       инструменты поиска: suggest_destinations, search_hotels, search_transport, search_transfers
+app/trip.py        assemble_trip (сборка и проверки стыковок), simulate_payment
 app/datastore.py   mock-данные, климат, генератор расписаний
 app/db.py          SQLite: сессии, профили, брони
 app/static/        UI (vanilla HTML/CSS/JS)
@@ -167,5 +179,5 @@ scripts/           генератор mock-данных
 
 ## Ограничения / TODO
 - В LLM-режиме оркестрация остаётся детерминированной (LLM — для NLU и объяснений), полноценный function-calling цикл LLM — следующий шаг.
-- Часовые пояса в расписаниях упрощены (время в TZ отправления).
+- Часовые пояса в расписаниях упрощены (время в TZ отправления). «Сегодня» считается в `APP_TZ`.
 - Живая погода (Open-Meteo) не подключена — используется mock-климат.
