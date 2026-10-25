@@ -10,14 +10,15 @@
 <body>
 <header class="hero">
   <div class="hero-in">
-    <div class="brand"><span class="logo-dot" aria-hidden="true">O!</span><div><div class="name">OnlyGo</div><div class="tag">Поездка под ключ — одним сообщением</div></div></div>
+    <div class="brand"><span class="logo-mark" aria-hidden="true"><svg viewBox="0 0 32 32" width="36" height="36"><rect width="32" height="32" rx="10" fill="#000"/><circle cx="13" cy="16" r="6" fill="none" stroke="#acef81" stroke-width="3"/><path d="M22 9v10" stroke="#acef81" stroke-width="3" stroke-linecap="round"/><circle cx="22" cy="23.5" r="1.8" fill="#acef81"/></svg></span><span class="name">OnlyGo</span></div>
     <div class="hero-act">
       <span id="mode" class="pill-badge">…</span>
-      <button id="demoBtn" class="btn pill" type="button" data-act="demo">▶ Демо-сценарий</button>
-      <button id="newTrip" class="btn pill ghost" type="button" data-act="new">＋ Новая поездка</button>
+      <button id="demoBtn" class="btn pill" type="button" data-act="demo"><i class="ic" data-ic="play"></i>Демо-сценарий</button>
+      <button id="newTrip" class="btn pill ghost" type="button" data-act="new"><i class="ic" data-ic="plus"></i>Новая поездка</button>
     </div>
   </div>
-  <h1 class="hero-h">Куда поедем? <span>Опишите как другу — агент подберёт направление, отель, билеты и трансфер, проверит стыковки и соберёт одну корзину.</span></h1>
+  <h1 class="hero-h">Куда поедем?</h1>
+  <p class="hero-tag">Вся поездка — одним сообщением.</p>
 </header>
 
 <div class="sheet">
@@ -30,19 +31,20 @@
       <li data-s="5"><b>5</b><span>Оплата</span></li>
     </ol>
   </nav>
-  <div class="mockbar" role="note">ℹ️ Демо-прототип: отели, рейсы и цены — синтетические (mock), оплата — симуляция, деньги не списываются.</div>
+  <div class="mockbar" role="note"><i class="ic" data-ic="info"></i><span>Демо-прототип: отели, рейсы и цены — синтетические (mock), оплата — симуляция, деньги не списываются.</span></div>
 
   <main id="main" class="m-chat">
     <section id="chatCol" aria-label="Диалог с агентом">
       <div id="chat" aria-live="polite"></div>
       <div id="empty" class="empty-state">
         <h2>С чего начать</h2>
-        <p>Напишите в поле ниже, куда и когда хотите, с кем едете и какой бюджет — или нажмите пример:</p>
+        <p>Опишите поездку как другу — агент подберёт направление, отель, билеты и трансфер, проверит стыковки и соберёт одну корзину.</p>
+        <p class="muted">Напишите в поле ниже, куда и когда хотите, с кем едете и какой бюджет — или нажмите пример:</p>
         <div class="ex-grid">
-          <button class="ex" data-act="send" data-msg="хочу куда-нибудь к тёплому морю в ноябре, недорого, с ребёнком, без долгих перелётов"><i>🏖</i><b>Море с ребёнком</b><small>ноябрь, недорого, без долгих перелётов</small></button>
-          <button class="ex" data-act="send" data-msg="из Питера в Казань на выходные вдвоём, бюджет до 40 тыс"><i>🏙</i><b>Казань на выходные</b><small>из Питера, вдвоём, до 40 тыс</small></button>
-          <button class="ex" data-act="send" data-msg="на новогодние в горы покататься на лыжах, нас трое взрослых, без визы"><i>⛷</i><b>Горы на Новый год</b><small>трое взрослых, без визы</small></button>
-          <button class="ex" data-act="send" data-msg="в Турцию всё включено в мае с собакой, бюджет 250 тысяч"><i>🐕</i><b>Турция с собакой</b><small>всё включено, май, 250 тыс</small></button>
+          <button class="ex" data-act="send" data-msg="хочу куда-нибудь к тёплому морю в ноябре, недорого, с ребёнком, без долгих перелётов"><span class="tile t-sea"><i class="ic" data-ic="sun"></i></span><b>Море с ребёнком</b><small>ноябрь, недорого, без долгих перелётов</small></button>
+          <button class="ex" data-act="send" data-msg="из Питера в Казань на выходные вдвоём, бюджет до 40 тыс"><span class="tile t-city"><i class="ic" data-ic="building"></i></span><b>Казань на выходные</b><small>из Питера, вдвоём, до 40 тыс</small></button>
+          <button class="ex" data-act="send" data-msg="на новогодние в горы покататься на лыжах, нас трое взрослых, без визы"><span class="tile t-mnt"><i class="ic" data-ic="mountain"></i></span><b>Горы на Новый год</b><small>трое взрослых, без визы</small></button>
+          <button class="ex" data-act="send" data-msg="в Турцию всё включено в мае с собакой, бюджет 250 тысяч"><span class="tile t-warm"><i class="ic" data-ic="paw"></i></span><b>Турция с собакой</b><small>всё включено, май, 250 тыс</small></button>
         </div>
         <ol class="how"><li>Опишите поездку</li><li>Выберите карточки, если хотите другое</li><li>Проверьте план и оплатите</li></ol>
       </div>
@@ -50,17 +52,17 @@
       <div id="hint" class="hint hidden"></div>
       <div id="edits" class="edits hidden" aria-label="Быстрые правки">
         <span class="lbl-s">Изменить:</span>
-        <button class="chip-btn" data-act="send" data-msg="на 2 дня позже">📅 на 2 дня позже</button>
-        <button class="chip-btn" data-act="send" data-msg="на 2 дня дольше">➕ на 2 дня дольше</button>
-        <button class="chip-btn" data-act="send" data-msg="бюджет меньше">💸 дешевле</button>
-        <button class="chip-btn" data-act="send" data-msg="мы поедем с собакой">🐕 с собакой</button>
-        <button class="chip-btn" data-act="send" data-msg="другой отель">🏨 другой отель</button>
-        <button class="chip-btn" data-act="send" data-msg="другое направление">🧭 другое направление</button>
+        <button class="chip-btn" data-act="send" data-msg="на 2 дня позже"><i class="ic" data-ic="calendar"></i>на 2 дня позже</button>
+        <button class="chip-btn" data-act="send" data-msg="на 2 дня дольше"><i class="ic" data-ic="plus"></i>на 2 дня дольше</button>
+        <button class="chip-btn" data-act="send" data-msg="бюджет меньше"><i class="ic" data-ic="wallet"></i>дешевле</button>
+        <button class="chip-btn" data-act="send" data-msg="мы поедем с собакой"><i class="ic" data-ic="paw"></i>с собакой</button>
+        <button class="chip-btn" data-act="send" data-msg="другой отель"><i class="ic" data-ic="bed"></i>другой отель</button>
+        <button class="chip-btn" data-act="send" data-msg="другое направление"><i class="ic" data-ic="pin"></i>другое направление</button>
       </div>
       <form id="form" class="composer">
         <label for="msg" class="sr">Сообщение агенту</label>
         <input id="msg" autocomplete="off" placeholder="Например: на море в ноябре вдвоём до 120 тысяч">
-        <button class="btn primary" type="submit" aria-label="Отправить сообщение">Найти</button>
+        <button class="btn primary" type="submit" aria-label="Отправить сообщение"><i class="ic" data-ic="send"></i><span>Найти</span></button>
       </form>
     </section>
 
@@ -74,8 +76,8 @@
 </div>
 
 <nav id="tabs" class="tabs" aria-label="Разделы">
-  <button data-act="tab" data-t="chat" class="on">💬 Диалог</button>
-  <button data-act="tab" data-t="side">🧳 План <span id="tabTotal"></span></button>
+  <button data-act="tab" data-t="chat" class="on"><i class="ic" data-ic="chat"></i>Диалог</button>
+  <button data-act="tab" data-t="side"><i class="ic" data-ic="map"></i>План <span id="tabTotal"></span></button>
 </nav>
 
 <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="mTitle"><div class="modal-box" id="modalBox"></div></div>

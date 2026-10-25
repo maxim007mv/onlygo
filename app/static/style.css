@@ -194,3 +194,89 @@ ul.trade { color: var(--warn); } ul.risk { color: var(--err); }
 .how { list-style: none; padding: 0; counter-reset: h; }
 .how li { counter-increment: h; display: flex; align-items: center; gap: 6px; }
 .how li::before { content: counter(h); width: 22px; height: 22px; border-radius: 50%; background: var(--lime); display: grid; place-items: center; font-weight: 700; font-size: 12px; color: #000; }
+
+/* ===== polish pass: SVG icons, hero rhythm, refined cards ===== */
+:root { --sh: 0 1px 2px rgba(0,0,0,.04), 0 2px 8px rgba(0,0,0,.05); --sh2: 0 4px 12px rgba(0,0,0,.06), 0 12px 32px rgba(0,0,0,.08); --tr: .18s ease; }
+svg.ic { width: 18px; height: 18px; flex: none; vertical-align: -3px; }
+.btn, .chip-btn, .ex, .card, .tabs button, details.more summary { transition: background var(--tr), border-color var(--tr), box-shadow var(--tr), transform var(--tr), color var(--tr); }
+.btn .ic { width: 16px; height: 16px; }
+/* hero: logo line → title → muted tagline */
+.hero { padding: 20px 24px 68px; }
+.brand { gap: 10px; }
+.logo-mark { display: grid; } .brand .name { font: 800 22px/1 var(--fh); letter-spacing: -.02em; }
+.hero-h { margin-top: 28px; font: 800 34px/1.1 var(--fh); letter-spacing: -.02em; }
+.hero-tag { margin: 8px 0 0; font-size: 15px; color: var(--t2); opacity: .85; }
+.pill-badge { display: inline-flex; align-items: center; min-height: 32px; }
+.steps { padding: 20px 0 12px; }
+.steps li { gap: 10px; padding: 6px 14px 6px 6px; min-height: 44px; }
+.steps li b { width: 30px; height: 30px; font-size: 13px; background: var(--s2); color: var(--t2); }
+.steps li b svg.ic { width: 16px; height: 16px; }
+.steps li.done b { background: var(--lime); color: #000; }
+.mockbar { display: flex; gap: 8px; align-items: center; margin: 4px auto 20px; border-style: solid; border-color: transparent; background: var(--tint); color: var(--t3); padding: 8px 12px; }
+.mockbar svg.ic { color: var(--blue); width: 16px; height: 16px; }
+/* tiles instead of sticker placeholders */
+.tile { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; flex: none; }
+.tile svg.ic { width: 22px; height: 22px; }
+.tile.sm { width: 32px; height: 32px; border-radius: 10px; } .tile.sm svg.ic { width: 17px; height: 17px; }
+.tile.lg { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 10px; } .tile.lg svg.ic { width: 28px; height: 28px; }
+.t-sea { background: var(--tint); color: var(--blue); } .t-city { background: var(--s2); color: var(--t3); }
+.t-mnt { background: var(--lime3); color: #2f6b12; } .t-warm { background: var(--warn-bg); color: var(--warn); }
+.ph { height: auto; padding: 14px 14px 0; display: flex; justify-content: space-between; align-items: flex-start; font-size: inherit; }
+.ph .tagsel, .ph .rank { position: static; }
+.tagsel { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; font-weight: 600; background: var(--blue); color: #fff; padding: 4px 10px; border-radius: 999px; }
+.tagsel svg.ic { width: 13px; height: 13px; }
+.ph .rank { background: var(--s2); color: var(--t2); font-weight: 600; }
+/* cards */
+.cards { gap: 14px; }
+.card { border-color: rgba(0,0,0,.08); box-shadow: var(--sh); }
+.card:hover { box-shadow: var(--sh2); transform: translateY(-2px); }
+.card.sel { border: 2px solid var(--blue); box-shadow: 0 0 0 4px var(--tint); }
+.cb { padding: 12px 16px 16px; gap: 8px; }
+.cb h4 { font-size: 17px; line-height: 1.25; } .ih { display: flex; gap: 10px; align-items: center; }
+.stars { display: inline-flex; gap: 1px; color: #f5a623; } .stars svg.fill { width: 14px; height: 14px; fill: currentColor; stroke: none; }
+.attrs { gap: 6px; } .attrs span { display: inline-flex; gap: 4px; align-items: center; padding: 3px 9px; }
+.attrs svg.ic { width: 13px; height: 13px; }
+.times { display: flex; align-items: center; gap: 8px; font: 700 20px var(--fh); }
+.times .line { flex: 1; height: 2px; background: var(--tint-b); border-radius: 1px; min-width: 20px; } .times small { font: 400 12px var(--fb); }
+.why1 { display: flex; gap: 6px; align-items: flex-start; } .why1 svg.ic { color: var(--ok); width: 15px; height: 15px; margin-top: 2px; }
+.price { font: 800 22px/1.1 var(--fh); letter-spacing: -.01em; padding-top: 6px; border-top: 1px solid rgba(0,0,0,.06); }
+.price small { display: inline; margin-left: 4px; }
+details.more { border-radius: 10px; background: var(--s3); }
+details.more summary { list-style: none; display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; min-height: 40px; border-radius: 10px; }
+details.more summary::-webkit-details-marker { display: none; }
+details.more summary::after { content: ''; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform var(--tr); margin-top: -4px; }
+details.more[open] summary::after { transform: rotate(-135deg); margin-top: 4px; }
+details.more summary:hover { background: var(--tint); }
+details.more > :not(summary) { margin-left: 12px; margin-right: 12px; } details.more[open] { padding-bottom: 10px; }
+/* empty state */
+.empty-state { padding: 28px; } .empty-state h2 { font-size: 22px; }
+.empty-state p { margin: 8px 0 0; } .empty-state p.muted { margin: 4px 0 18px; font-size: 14px; }
+.ex { background: #fff; gap: 4px; padding: 16px; } .ex .tile { margin-bottom: 8px; }
+.ex:hover { border-color: var(--tint-b); background: #fff; box-shadow: var(--sh2); transform: translateY(-2px); }
+.how { margin-top: 20px; gap: 20px; }
+/* chat bits */
+.note, .hint, .voucher, .secure, .q b, .check { display: flex; gap: 8px; align-items: flex-start; }
+.note svg.ic, .secure svg.ic, .voucher svg.ic { width: 16px; height: 16px; margin-top: 1px; color: var(--t2); }
+.hint svg.ic { width: 16px; height: 16px; margin-top: 1px; }
+.q b svg.ic { color: var(--blue); }
+.chip-btn { display: inline-flex; gap: 6px; align-items: center; min-height: 44px; } .chip-btn svg.ic { width: 15px; height: 15px; }
+.check svg.ic { width: 17px; height: 17px; margin-top: 1px; } .check > div { flex: 1; }
+.check.ok svg.ic, .check.error_fixed svg.ic { color: var(--ok); } .check.warn > svg.ic { color: var(--warn); } .check.error > svg.ic { color: var(--err); }
+.check .btn svg.ic { color: #fff; width: 15px; height: 15px; }
+.sumline span { display: inline-flex; gap: 4px; align-items: center; } .sumline svg.ic { width: 13px; height: 13px; }
+.tl { border-left-color: var(--tint); padding-left: 22px; margin-left: 14px; gap: 14px; }
+.tl-dot { position: absolute; left: -38px; top: -2px; width: 30px; height: 30px; border-radius: 50%; background: var(--tint); color: var(--blue); display: grid; place-items: center; }
+.tl-dot svg.ic { width: 15px; height: 15px; }
+.chip button svg.ic, .trace svg.ic { width: 12px; height: 12px; }
+/* composer */
+.composer { padding: 14px 0; }
+.composer input { border-radius: 14px; border-color: rgba(0,0,0,.1); box-shadow: var(--sh); transition: border-color var(--tr), box-shadow var(--tr); }
+.composer input:focus { box-shadow: 0 0 0 3px var(--tint); }
+.composer .btn { border-radius: 14px; padding: 0 20px; } .composer .btn svg.ic { width: 18px; height: 18px; }
+.tabs button { display: inline-flex; gap: 6px; align-items: center; justify-content: center; }
+.empty-plan { padding: 22px 8px; }
+@media (max-width: 960px) {
+  .hero-h { font-size: 26px; margin-top: 20px; } .hero-tag { font-size: 14px; }
+  .composer .btn span { display: none; } .composer .btn { width: 52px; padding: 0; }
+  .steps li { padding: 6px; } .steps li.cur { padding-right: 14px; }
+}
