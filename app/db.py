@@ -30,6 +30,7 @@ def conn():
         CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, user_id TEXT, state TEXT, updated TEXT);
         CREATE TABLE IF NOT EXISTS profiles(user_id TEXT PRIMARY KEY, prefs TEXT, updated TEXT);
         CREATE TABLE IF NOT EXISTS bookings(id TEXT PRIMARY KEY, session_id TEXT, user_id TEXT, data TEXT, created TEXT);
+        CREATE INDEX IF NOT EXISTS bookings_user ON bookings(user_id);
         """)
     return _c
 
@@ -46,8 +47,17 @@ def get_session(sid):
 
 def save_session(sid, user_id, state):
     with _lock:
-        conn().execute("INSERT OR REPLACE INTO sessions VALUES(?,?,?,?)", (sid, user_id, json.dumps(state, ensure_ascii=False), datetime.now().isoformat()))
+        # keep the owner when a follow-up call (select/correct/checkout) does not know user_id
+        conn().execute("INSERT INTO sessions VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
+                       "user_id=COALESCE(excluded.user_id, sessions.user_id), state=excluded.state, updated=excluded.updated",
+                       (sid, user_id, json.dumps(state, ensure_ascii=False), datetime.now().isoformat()))
         conn().commit()
+
+
+def session_user(sid):
+    with _lock:
+        r = conn().execute("SELECT user_id FROM sessions WHERE id=?", (sid,)).fetchone()
+    return r[0] if r else None
 
 
 def get_profile(uid):

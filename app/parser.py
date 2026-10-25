@@ -49,6 +49,77 @@ def _month_start(month: int, today: date) -> date:
     return d
 
 
+MAX_NIGHTS = 30
+MAX_ADULTS = 9
+MAX_CHILDREN = 6
+MIN_BUDGET, MAX_BUDGET = 5_000, 5_000_000
+
+
+def _future(d: date, today: date) -> date:
+    """Dates without a year mean the nearest future occurrence."""
+    while d < today:
+        d = d.replace(year=d.year + 1)
+    return d
+
+
+def _safe_date(y: int, m: int, d: int) -> date | None:
+    try:
+        return date(y, m, d)
+    except ValueError:
+        return None
+
+
+def sanitize(delta: dict, today: date) -> dict:
+    """Validate/clamp a slot delta (from rules OR from an LLM) so planning never sees bad types/values."""
+    out: dict = {}
+    for k, v in (delta or {}).items():
+        try:
+            if k == "start_date":
+                d = date.fromisoformat(str(v)[:10])
+                if d < today or d > today + timedelta(days=550):
+                    continue
+                out[k] = d.isoformat()
+            elif k == "month":
+                if 1 <= int(v) <= 12: out[k] = int(v)
+            elif k == "nights":
+                out[k] = min(MAX_NIGHTS, max(1, int(v)))
+            elif k == "adults":
+                out[k] = min(MAX_ADULTS, max(1, int(v)))
+            elif k == "children":
+                out[k] = min(MAX_CHILDREN, max(0, int(v)))
+            elif k == "child_ages":
+                out[k] = [int(a) for a in v if 0 <= int(a) < 18][:MAX_CHILDREN]
+            elif k == "budget":
+                if MIN_BUDGET <= float(v) <= MAX_BUDGET: out[k] = int(v)
+            elif k in ("shift_days", "extend_nights"):
+                if int(v): out[k] = max(-60, min(60, int(v)))
+            elif k == "budget_factor":
+                if 0.3 <= float(v) <= 3: out[k] = float(v)
+            elif k == "max_travel_hours":
+                if 1 <= float(v) <= 30: out[k] = int(v)
+            elif k == "meals":
+                if v in ("RO", "BB", "HB", "AI"): out[k] = v
+            elif k in ("destination",):
+                if datastore.destination(str(v)): out[k] = str(v)
+            elif k == "exclude_destinations":
+                out[k] = [x for x in v if datastore.destination(str(x))]
+            elif k == "origin":
+                if any(o["id"] == v for o in datastore.origins()): out[k] = v
+            elif k == "moods":
+                out[k] = [m for m in v if m in MOODS]
+            elif k in ("country",):
+                if isinstance(v, str) and v: out[k] = v
+            elif k == "implicit_notes":
+                out[k] = [str(x)[:200] for x in v][:5]
+            elif isinstance(v, bool):
+                out[k] = v
+        except (TypeError, ValueError):
+            continue
+    if out.get("child_ages") and "children" not in out:
+        out["children"] = len(out["child_ages"])
+    return out
+
+
 def parse(text: str, today: date | None = None, state: dict | None = None) -> dict:
     today = today or date.today()
     t = " " + text.lower().replace("ё", "е") + " "
@@ -84,20 +155,36 @@ def parse(text: str, today: date | None = None, state: dict | None = None) -> di
         for pat, num in MONTHS.items():
             if m.group(2) and re.match(pat, m.group(2)):
                 mo1 = num
-        y = today.year if mo1 >= today.month else today.year + 1
-        try:
-            start = date(y, mo1, d1)
-            end = date(y if mo2 >= mo1 else y + 1, mo2, d2)
-            s["start_date"], s["nights"] = start.isoformat(), max(1, (end - start).days)
-            s["month"] = mo1
-        except ValueError:
-            pass
-    elif month_found:
+        start = _safe_date(today.year, mo1, d1)
+        if start:
+            start = _future(start, today)
+            end = _safe_date(start.year, mo2, d2)
+            if end and end <= start:
+                end = _safe_date(start.year + 1, mo2, d2)
+            if end:
+                s["start_date"], s["nights"] = start.isoformat(), min(MAX_NIGHTS, max(1, (end - start).days))
+                s["month"] = mo1
+    num = re.search(r"(?:с\s*)?(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?(?:\s*(?:по|-|–|до)\s*(\d{1,2})\.(\d{1,2})(?:\.\d{2,4})?)?(?![\d.])(?!\s*(?:ч|час|тыс|млн|к\b|%|руб|₽))", t)
+    if num and not (m and month_found):
+        start = _safe_date(today.year, int(num.group(2)), int(num.group(1)))
+        if start:
+            if num.group(3):
+                yy = int(num.group(3)); yy = yy + 2000 if yy < 100 else yy
+                start = _safe_date(yy, start.month, start.day) or start
+            start = _future(start, today)
+            s["start_date"], s["month"] = start.isoformat(), start.month
+            if num.group(4):
+                end = _safe_date(start.year, int(num.group(5)), int(num.group(4)))
+                if end and end <= start:
+                    end = _safe_date(start.year + 1, end.month, end.day)
+                if end:
+                    s["nights"] = min(MAX_NIGHTS, max(1, (end - start).days))
+    elif month_found and not (m and "start_date" in s):
         s["month"] = month_found
         s["start_date"] = _month_start(month_found, today).isoformat()
     if re.search(r"новый год|новогодн", t):
-        y = today.year
-        s["start_date"], s["month"] = date(y, 12, 29).isoformat(), 12
+        ny = _future(date(today.year, 12, 29), today)
+        s["start_date"], s["month"] = ny.isoformat(), 12
         s.setdefault("nights", 7)
     if re.search(r"на (эти |ближайшие )?выходн", t):
         d = today + timedelta(days=(4 - today.weekday()) % 7 or 7)

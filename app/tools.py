@@ -7,6 +7,13 @@ from datetime import date, datetime, timedelta
 
 from . import datastore as ds
 
+DEFAULT_NIGHTS = 7
+DEFAULT_ADULTS = 2
+INFANT_MAX_AGE = 1        # 0–1 y.o.: no seat, ~10% fare
+INFANT_FARE_SHARE = 0.1
+CHECKIN_HOUR = 14
+BAGGAGE_EXIT_MIN = 40     # время на выход из аэропорта/вокзала с багажом
+
 MEAL_RU = {"RO": "без питания", "BB": "завтраки", "HB": "полупансион", "AI": "всё включено"}
 
 
@@ -15,11 +22,19 @@ def rub(x: float) -> str:
 
 
 def pax(req: dict) -> tuple[int, int]:
-    return req.get("adults") or 2, req.get("children") or 0
+    return req.get("adults") or DEFAULT_ADULTS, req.get("children") or 0
+
+
+def child_fare_units(req: dict, child_share: float) -> float:
+    """Sum of child fare multipliers: infants (0–1) fly for ~10%, older kids pay `child_share`."""
+    _, children = pax(req)
+    ages = list(req.get("child_ages") or [])[:children]
+    infants = sum(1 for a in ages if a <= INFANT_MAX_AGE)
+    return infants * INFANT_FARE_SHARE + (children - infants) * child_share
 
 
 def nights(req: dict) -> int:
-    return req.get("nights") or 7
+    return req.get("nights") or DEFAULT_NIGHTS
 
 
 # ---------------------------------------------------------------- destinations
@@ -108,7 +123,7 @@ def estimate_cost(req: dict, d: dict, orig: dict, month: int) -> int:
     adults, children = pax(req)
     dist = ds.distance_km(orig["lat"], orig["lon"], d["lat"], d["lon"])
     sm = ds.season_mult(d, month)
-    flight = (3500 + dist * 4.2) * sm * 2 * (adults + 0.75 * children)
+    flight = (3500 + dist * 4.2) * sm * 2 * (adults + child_fare_units(req, 0.75))
     hotel = d["base_hotel_price"] * sm * nights(req) * (1 + 0.25 * children)
     return int(round(flight + hotel + 4000, -3))
 
@@ -174,7 +189,7 @@ def search_transport(req: dict, did: str, direction: str, limit: int = 3) -> lis
     opts = ds.transport_options(orig, d, day, direction)
     res = []
     for o in opts:
-        total = o["price_per_adult"] * adults + o["price_per_child"] * children
+        total = o["price_per_adult"] * (adults + child_fare_units(req, o["price_per_child"] / max(1, o["price_per_adult"])))
         dep = datetime.fromisoformat(o["depart"])
         score, why, cons, risks = 100 - total / 2000, [], [], []
         if req.get("budget") or req.get("price_sensitive"):
@@ -217,11 +232,12 @@ def search_transfers(req: dict, did: str, hotel_id: str | None = None, arrival_i
     adults, children = pax(req)
     people = adults + children
     h = ds.hotel(hotel_id) if hotel_id else None
-    base_min = h["transfer_minutes"] if h else 40
+    base_min = h["transfer_minutes"] if h else 40  # mock default when hotel unknown
     late = arrival_iso and (datetime.fromisoformat(arrival_iso).hour >= 22 or datetime.fromisoformat(arrival_iso).hour < 6)
     res = []
     for t in ds.transfers(did):
-        price = t["price"] if t["per"] == "car" else t["price"] * people
+        cars = -(-people // t["max_pax"]) if t["per"] == "car" else 1  # ceil: big groups need several cars
+        price = t["price"] * cars if t["per"] == "car" else t["price"] * people
         minutes = int(base_min * t["minutes_factor"])
         score, why, cons = 50 - price / 300 - minutes / 5, [], []
         if t["type"] == "taxi":
@@ -230,7 +246,7 @@ def search_transfers(req: dict, did: str, hotel_id: str | None = None, arrival_i
             if late: score += 15; why.append("работает ночью")
         if req.get("pets") and not t["pets_allowed"]: score -= 50; cons.append("нельзя с животными")
         if late and not t["available_24h"]: score -= 40; cons.append("не работает при позднем прилёте")
-        if people > t["max_pax"]: score -= 50
+        if cars > 1: score -= 10; cons.append(f"нужно {cars} машины на {people} чел.")
         res.append(dict(**t, total=int(price), minutes=minutes, score=round(score, 1), why=why, tradeoffs=cons))
     res.sort(key=lambda x: -x["score"])
     return res
@@ -240,13 +256,13 @@ def search_transfers(req: dict, did: str, hotel_id: str | None = None, arrival_i
 def assemble_trip(req: dict, dest: dict, hotel: dict, out_t: dict, ret_t: dict, tr_out: dict, tr_ret: dict) -> dict:
     checks = []
     arr = datetime.fromisoformat(out_t["arrive"])
-    at_hotel = arr + timedelta(minutes=tr_out["minutes"] + 40)  # +40 min for baggage/exit
+    at_hotel = arr + timedelta(minutes=tr_out["minutes"] + BAGGAGE_EXIT_MIN)
     start = date.fromisoformat(req["start_date"])
     checkin_date = start
     if arr.date() > start:
         checkin_date = arr.date()
         checks.append(dict(level="error_fixed", title="Дата заезда", text=f"Прилёт {arr:%d.%m %H:%M} — уже следующий день. Сдвинул заезд в отель на {checkin_date:%d.%m}, чтобы не платить за пустую ночь."))
-    checkin_dt = datetime.combine(checkin_date, datetime.min.time()) + timedelta(hours=14)
+    checkin_dt = datetime.combine(checkin_date, datetime.min.time()) + timedelta(hours=CHECKIN_HOUR)
     if at_hotel < checkin_dt - timedelta(hours=3):
         if at_hotel.hour < 6 and at_hotel.date() == checkin_date:
             checks.append(dict(level="warn", title="Ранний приезд", text=f"Будете в отеле около {at_hotel:%H:%M}, заселение с 14:00. " + ("В отеле доступен ранний заезд — могу запросить после покупки." if hotel["early_checkin_available"] else "Ранний заезд не гарантирован; вариант — оплатить предыдущую ночь.")))

@@ -45,7 +45,7 @@ function list(cls, label, arr) { return arr && arr.length ? `<div class="lbl">${
 function explain(o) { return list('why', 'Почему подходит', o.why) + list('trade', 'Компромиссы', o.tradeoffs) + list('risk', 'Риски', o.risks); }
 const attr = (t, cls = '') => `<span class="${cls}">${esc(t)}</span>`;
 function head(title, i, isSel) { return `<div class="top"><h4>${title}</h4>${isSel ? '<span class="sel-tag">в плане</span>' : `<span class="rank">#${i + 1}</span>`}</div>`; }
-function act(kind, id, isSel, label = 'Выбрать') { return `<div class="act">${isSel ? '<span class="muted">✓ выбрано</span>' : `<button onclick="choose('${kind}','${id}')">${label}</button>`}</div>`; }
+function act(kind, id, isSel, label = 'Выбрать') { return `<div class="act">${isSel ? '<span class="muted">✓ выбрано</span>' : `<button onclick="choose('${esc(kind)}','${esc(id)}')">${label}</button>`}</div>`; }
 
 function destCard(d, i, selId, budget) {
   const w = d.weather, s = d.id === selId;
@@ -107,8 +107,8 @@ function setMode(m) { $('#mode').textContent = m === 'llm' ? 'LLM-режим' : 
 const IC = { outbound: '✈', transfer_out: '🚕', hotel: '🏨', transfer_ret: '🚕', return: '✈' };
 function renderSide(r) {
   $('#reqs').classList.toggle('muted', !r.requirements?.length);
-  $('#reqs').innerHTML = (r.requirements || []).map((q) => `<span class="chip s-${esc(String(q.source).split(' ')[0])}">${esc(q.label)} <i>${esc(q.source)}</i><button title="Убрать условие" onclick="removeReq('${q.slot}')">×</button></span>`).join('') || 'Пока ничего';
-  $('#trace').innerHTML = (r.trace || []).map((t) => `<div class="${t.status}">${t.status === 'run' ? '▶' : '↺'} ${t.tool}${t.note ? ' (' + esc(t.note) + ')' : ''} — ${t.status === 'run' ? t.ms + ' мс' : 'переиспользовано'}</div>`).join('') || '—';
+  $('#reqs').innerHTML = (r.requirements || []).map((q) => `<span class="chip s-${esc(String(q.source).split(' ')[0])}">${esc(q.label)} <i>${esc(q.source)}</i><button title="Убрать условие" onclick="removeReq('${esc(q.slot)}')">×</button></span>`).join('') || 'Пока ничего';
+  $('#trace').innerHTML = (r.trace || []).map((t) => `<div class="${t.status}">${t.status === 'run' ? '▶' : '↺'} ${esc(t.tool)}${t.note ? ' (' + esc(t.note) + ')' : ''} — ${t.status === 'run' ? t.ms + ' мс' : 'переиспользовано'}</div>`).join('') || '—';
   const st = r.stats || {};
   $('#stats').textContent = `ходов: ${st.turns ?? 0} · уточнений: ${st.clarifications ?? 0} · до первой рекомендации: ${st.first_rec_ms != null ? st.first_rec_ms + ' мс' : '—'} · ответ: ${r.latency_ms ?? '—'} мс`;
   const p = r.plan, el = $('#plan');
@@ -132,7 +132,7 @@ function postPurchase(b) {
   return `<div class="voucher">💳 Оплачено (симуляция) · бронь <b>${b.booking_id}</b> · ${rub(b.amount)}</div>
   <div class="section-t">Управление поездкой</div><div class="chips">
   ${[['early_checkin', '🕙 Ранний заезд'], ['late_checkout', '🕓 Поздний выезд'], ['change_dates', '📅 Перенести на +2 дня', '2'], ['reminder', '🔔 Напоминания'], ['add_transfer', '🚕 Привязать трансфер к рейсу']]
-      .map(([a, l, v]) => `<button onclick="post('${b.booking_id}','${a}',${v ? `'${v}'` : 'null'})">${l}</button>`).join('')}</div>`;
+      .map(([a, l, v]) => `<button onclick="post('${esc(b.booking_id)}','${a}',${v ? `'${v}'` : 'null'})">${l}</button>`).join('')}</div>`;
 }
 async function post(bid, action, value) {
   try { const r = await api('/api/post_purchase', { booking_id: bid, action, value }); add('📌 ' + esc(r.message)); return r; } catch (e) { add('⚠️ ' + esc(e.message)); }

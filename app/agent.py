@@ -11,7 +11,7 @@ from datetime import date, timedelta
 
 from . import datastore as ds
 from . import llm, parser, tools
-from .tools import rub
+from .tools import DEFAULT_NIGHTS, rub
 
 DEST_KEYS = {"moods", "month", "max_travel_hours", "visa_free_only", "prefer_train", "budget", "price_sensitive",
              "pets", "children", "exclude_destinations", "origin", "change_destination", "destination", "country", "meals"}
@@ -24,7 +24,7 @@ TRANSIENT = {"shift_days", "extend_nights", "budget_factor", "change_destination
 LABELS = {
     "origin": lambda v, r: f"Откуда: {ds.origin(v)['name']}",
     "destination": lambda v, r: f"Куда: {ds.destination(v)['name']}",
-    "start_date": lambda v, r: f"Даты: с {date.fromisoformat(v):%d.%m.%Y}, {r.get('nights') or 7} ноч.",
+    "start_date": lambda v, r: f"Даты: с {date.fromisoformat(v):%d.%m.%Y}, {r.get('nights') or DEFAULT_NIGHTS} ноч.",
     "country": lambda v, r: f"Страна: {v}",
     "budget": lambda v, r: f"Бюджет: до {rub(v)}",
     "price_sensitive": lambda v, r: "Недорого",
@@ -66,11 +66,22 @@ class Trace:
         self.items.append({"tool": tool, "status": "reused", "ms": 0, "note": note})
 
 
+DEFAULT_BUDGET_BASE = 150_000  # base for «дешевле/дороже» when no budget and no plan yet
+DEFAULT_LEAD_DAYS = 21          # «не важно когда» → через 3 недели
+MAX_HISTORY = 40                 # turns kept in session state (bounded growth)
+SELECTABLE = {"destination": "destinations", "hotel": "hotels", "outbound": "outbound", "return": "return",
+              "transfer_out": "transfers_out", "transfer_ret": "transfers_ret"}
+
+
+class AgentInputError(ValueError):
+    """Bad user action (unknown option, nothing to change) — mapped to HTTP 400, never 500."""
+
+
 def requirements_view(req: dict, sources: dict) -> list[dict]:
     out = []
     for k, fn in LABELS.items():
         v = req.get(k)
-        if v in (None, False, [], 0) and not (k == "children" and v == 0 and False):
+        if v in (None, False, [], 0):
             continue
         try:
             out.append({"slot": k, "label": fn(v, req), "source": sources.get(k, "явно")})
@@ -86,12 +97,12 @@ def understand(state: dict, text: str, trace: Trace, today: date) -> dict:
     if llm.enabled():
         delta = trace.run("parse_request", llm.parse, text, today.isoformat(), req, [d["id"] for d in ds.destinations()], note="LLM")
     rules = trace.run("parse_request", parser.parse, text, today, req, note="rules")
-    if delta is None:
+    if not isinstance(delta, dict):
         delta = rules
     else:  # LLM is primary, rules fill gaps (robustness)
         for k, v in rules.items():
             delta.setdefault(k, v)
-    return delta
+    return parser.sanitize(delta, today)
 
 
 def apply_delta(state: dict, delta: dict, today: date) -> tuple[set, list[str]]:
@@ -114,10 +125,10 @@ def apply_delta(state: dict, delta: dict, today: date) -> tuple[set, list[str]]:
         req["start_date"], req["month"] = nd.isoformat(), nd.month
         changed.add("start_date"); notes.append(f"Сдвинул даты на {delta['shift_days']:+d} дн.: заезд {nd:%d.%m}")
     if delta.get("extend_nights"):
-        req["nights"] = max(1, (req.get("nights") or 7) + int(delta["extend_nights"]))
+        req["nights"] = min(parser.MAX_NIGHTS, max(1, (req.get("nights") or DEFAULT_NIGHTS) + int(delta["extend_nights"])))
         changed.add("nights"); notes.append(f"Длительность: {req['nights']} ноч.")
     if delta.get("budget_factor"):
-        base = req.get("budget") or (state["plan"] or {}).get("total") or 150000
+        base = req.get("budget") or (state["plan"] or {}).get("total") or DEFAULT_BUDGET_BASE
         req["budget"] = int(round(base * float(delta["budget_factor"]), -3))
         src["budget"] = "из правки"; changed.add("budget"); notes.append(f"Новый бюджет: до {rub(req['budget'])}")
     if delta.get("change_destination") and state["selected"].get("destination"):
@@ -142,7 +153,7 @@ def apply_implicit(state: dict, notes: list[str]):
     if not req.get("origin"):
         req["origin"] = "moscow"; src["origin"] = "по умолчанию"
     if not req.get("nights"):
-        req["nights"] = 7; src["nights"] = "по умолчанию"
+        req["nights"] = DEFAULT_NIGHTS; src["nights"] = "по умолчанию"
     removed = state.get("removed", [])
     if req.get("children") and not req.get("flexible_cancellation") and "flexible_cancellation" not in removed:
         req["flexible_cancellation"] = True; src["flexible_cancellation"] = "неявно: с ребёнком планы меняются"
@@ -160,7 +171,7 @@ def clarifying_questions(state: dict, today: date) -> list[dict]:
             qs.append({"id": "dates", "text": "Когда планируете поехать и примерно на сколько дней?", "blocking": True,
                        "options": ["В ноябре на неделю", "На новогодние праздники", "В ближайшие 2 недели, дней на 5", "Не важно, когда дешевле"]})
         else:
-            d = today + timedelta(days=21)
+            d = today + timedelta(days=DEFAULT_LEAD_DAYS)
             req["start_date"], req["month"] = d.isoformat(), d.month
             state["sources"]["start_date"] = "по умолчанию (через 3 недели)"
     if req.get("children") and not req.get("child_ages") and "child_ages" not in asked:
@@ -351,6 +362,7 @@ def handle_message(state: dict, text: str, profile: dict, today: date | None = N
     resp["trace"] = trace.items
     resp["latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
     state["history"].append({"role": "agent", "text": resp["reply"]})
+    del state["history"][:-MAX_HISTORY]
     return finalize(state, resp)
 
 
@@ -400,6 +412,16 @@ def select(state: dict, kind: str, item_id: str) -> dict:
     trace = Trace()
     sel = state["selected"]
     changed = set()
+    if kind not in SELECTABLE:
+        raise AgentInputError(f"Неизвестный тип замены: {kind}")
+    if kind == "destination":
+        if not ds.destination(item_id):
+            raise AgentInputError("Такого направления нет")
+    else:
+        if not state.get("plan"):
+            raise AgentInputError("Сначала нужен план — опишите поездку")
+        if item_id not in [o["id"] for o in state["candidates"].get(SELECTABLE[kind]) or []]:
+            raise AgentInputError("Этого варианта нет среди предложенных")
     if kind == "destination":
         state["req"]["destination"] = item_id; state["sources"]["destination"] = "выбор пользователя"; changed.add("destination")
     elif kind in ("hotel", "outbound", "return", "transfer_out", "transfer_ret"):
@@ -424,6 +446,8 @@ def correct(state: dict, slot: str) -> dict:
     """User removes a requirement the agent inferred/was told (agent logic is editable)."""
     trace = Trace()
     req = state["req"]
+    if slot not in req:
+        raise AgentInputError("Такого условия нет в запросе")
     req.pop(slot, None)
     state.setdefault("removed", []).append(slot)
     state["sources"].pop(slot, None)
