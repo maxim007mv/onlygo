@@ -1,4 +1,5 @@
 """Regression tests for the code-quality audit (see CODE_AUDIT.md)."""
+
 import os
 import tempfile
 import threading
@@ -6,10 +7,10 @@ from datetime import date
 
 os.environ.setdefault("DB_PATH", os.path.join(tempfile.mkdtemp(), "t.db"))
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from app import agent, parser, tools  # noqa: E402
-from app.main import app  # noqa: E402
+from app import agent, parser, tools
+from app.main import app
 
 c = TestClient(app, raise_server_exceptions=False)
 TODAY = date(2026, 10, 25)
@@ -59,6 +60,7 @@ def test_post_purchase_value_validation_and_double_checkout():
 
 def test_booking_keeps_user_id():
     from app import db
+
     r = c.post("/api/chat", json={"message": "Сочи на неделю в ноябре вдвоём", "user_id": "u_test1"}).json()
     c.post("/api/select", json={"session_id": r["session_id"], "kind": "destination", "id": "sochi"})  # no user_id here
     c.post("/api/checkout", json={"session_id": r["session_id"]})
@@ -68,10 +70,13 @@ def test_booking_keeps_user_id():
 def test_parallel_requests_same_session():
     sid = _plan()["session_id"]
     codes = []
+
     def go(m):
         codes.append(c.post("/api/chat", json={"message": m, "session_id": sid}).status_code)
+
     ts = [threading.Thread(target=go, args=(m,)) for m in ["дешевле", "на 2 дня дольше", "с собакой", "без пересадок"]]
-    [t.start() for t in ts]; [t.join() for t in ts]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
     assert codes == [200] * 4
     assert c.get(f"/api/session/{sid}").status_code == 200
 
@@ -96,8 +101,18 @@ def test_dates_never_in_past():
 
 
 def test_sanitize_rejects_garbage_llm_output():
-    bad = {"start_date": "вчера", "nights": "-5", "adults": 0, "children": 99, "budget": "много",
-           "destination": "atlantis", "meals": "XX", "moods": ["sea", "lava"], "pets": True, "max_travel_hours": 999}
+    bad = {
+        "start_date": "вчера",
+        "nights": "-5",
+        "adults": 0,
+        "children": 99,
+        "budget": "много",
+        "destination": "atlantis",
+        "meals": "XX",
+        "moods": ["sea", "lava"],
+        "pets": True,
+        "max_travel_hours": 999,
+    }
     s = parser.sanitize(bad, TODAY)
     assert "start_date" not in s and s["nights"] == 1 and s["adults"] == 1 and s["children"] == parser.MAX_CHILDREN
     assert "budget" not in s and "destination" not in s and "meals" not in s and s["moods"] == ["sea"]

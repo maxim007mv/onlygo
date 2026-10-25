@@ -1,5 +1,6 @@
 """Mock data layer. Loads synthetic JSON datasets and generates deterministic
 flight/train schedules. Everything is MOCK data, not real inventory."""
+
 from __future__ import annotations
 
 import hashlib
@@ -113,14 +114,25 @@ def transport_options(orig: dict, d: dict, day: date, direction: str, pets: bool
         dep = datetime.combine(day, datetime.min.time()) + timedelta(hours=dep_h, minutes=r.choice([0, 15, 30, 45]))
         arr = dep + timedelta(hours=dur_h)  # times in origin-tz for simplicity (mock)
         price = int(round((3500 + dist * 4.2) * sm * (0.85 if stops else 1.0) * r.uniform(0.75, 1.35), -2))
-        out.append(dict(
-            id=f"F-{a['airport'] if 'airport' in a else 'X'}{b.get('airport','X')}-{day:%m%d}-{i}{direction[0]}",
-            mode="flight", carrier=r.choice(carriers), direction=direction,
-            from_name=a["name"], to_name=b["name"], depart=_fmt(dep), arrive=_fmt(arr),
-            duration_min=int(dur_h * 60), stops=stops, price_per_adult=price,
-            price_per_child=int(price * 0.75), baggage_included=r.random() < 0.6,
-            refundable=r.random() < 0.35, pets_in_cabin=r.random() < 0.5,
-        ))
+        out.append(
+            dict(
+                id=f"F-{a.get('airport', 'X')}{b.get('airport', 'X')}-{day:%m%d}-{i}{direction[0]}",
+                mode="flight",
+                carrier=r.choice(carriers),
+                direction=direction,
+                from_name=a["name"],
+                to_name=b["name"],
+                depart=_fmt(dep),
+                arrive=_fmt(arr),
+                duration_min=int(dur_h * 60),
+                stops=stops,
+                price_per_adult=price,
+                price_per_child=int(price * 0.75),
+                baggage_included=r.random() < 0.6,
+                refundable=r.random() < 0.35,
+                pets_in_cabin=r.random() < 0.5,
+            )
+        )
     # trains: domestic & Abkhazia, if not too far
     same_rail = d["country"] in ("Россия", "Абхазия") and dist < 2600 and d["id"] not in ("kaliningrad",)
     if same_rail:
@@ -129,11 +141,23 @@ def transport_options(orig: dict, d: dict, day: date, direction: str, pets: bool
             dep = datetime.combine(day, datetime.min.time()) + timedelta(hours=dep_h, minutes=r.choice([5, 25, 40]))
             arr = dep + timedelta(hours=dur_h)
             price = int(round((1500 + dist * 2.4) * sm * r.uniform(0.85, 1.2), -2))
-            out.append(dict(
-                id=f"T-{orig['id']}-{d['id']}-{day:%m%d}-{i}{direction[0]}", mode="train",
-                carrier="РЖД-Mock (купе)", direction=direction, from_name=a["name"], to_name=b["name"],
-                depart=_fmt(dep), arrive=_fmt(arr), duration_min=int(dur_h * 60), stops=0,
-                price_per_adult=price, price_per_child=int(price * 0.6), baggage_included=True,
-                refundable=True, pets_in_cabin=True,
-            ))
+            out.append(
+                dict(
+                    id=f"T-{orig['id']}-{d['id']}-{day:%m%d}-{i}{direction[0]}",
+                    mode="train",
+                    carrier="РЖД-Mock (купе)",
+                    direction=direction,
+                    from_name=a["name"],
+                    to_name=b["name"],
+                    depart=_fmt(dep),
+                    arrive=_fmt(arr),
+                    duration_min=int(dur_h * 60),
+                    stops=0,
+                    price_per_adult=price,
+                    price_per_child=int(price * 0.6),
+                    baggage_included=True,
+                    refundable=True,
+                    pets_in_cabin=True,
+                )
+            )
     return out

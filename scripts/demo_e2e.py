@@ -1,7 +1,10 @@
 """End-to-end demo scenario against a running server (default http://localhost:8080).
 Walks: one request -> clarification -> 2 replans -> fix a connection warning -> simulated payment -> post-purchase.
 Usage: python scripts/demo_e2e.py [--url http://localhost:8080]   (stdlib only)"""
-import json, sys, urllib.request
+
+import json
+import sys
+import urllib.request
 
 URL = sys.argv[sys.argv.index("--url") + 1] if "--url" in sys.argv else "http://localhost:8080"
 
@@ -28,13 +31,18 @@ def show(step, r):
 def main():
     assert call("/health") == {"status": "ok"}
     print("health ok, mode:", call("/api/config")["mode"])
-    r = call("/api/chat", {"message": "хочу куда-нибудь к тёплому морю в ноябре, недорого, с ребёнком, без долгих перелётов", "user_id": "demo"})
-    sid = r["session_id"]; show("1. Один запрос", r)
+    r = call(
+        "/api/chat", {"message": "хочу куда-нибудь к тёплому морю в ноябре, недорого, с ребёнком, без долгих перелётов", "user_id": "demo"}
+    )
+    sid = r["session_id"]
+    show("1. Один запрос", r)
     for i, m in enumerate(["ребёнку 5 лет", "на 2 дня позже", "мы поедем с собакой"], 2):
-        r = call("/api/chat", {"message": m, "session_id": sid, "user_id": "demo"}); show(f"{i}. «{m}»", r)
+        r = call("/api/chat", {"message": m, "session_id": sid, "user_id": "demo"})
+        show(f"{i}. «{m}»", r)
     fix = next((c["fix"] for c in r["plan"]["checks"] if c.get("fix") and "id" in c["fix"]), None)
     if fix:
-        r = call("/api/select", {"session_id": sid, "kind": fix["kind"], "id": fix["id"]}); show(f"5. Исправление: {fix['label']}", r)
+        r = call("/api/select", {"session_id": sid, "kind": fix["kind"], "id": fix["id"]})
+        show(f"5. Исправление: {fix['label']}", r)
     assert r["plan"]["connection_errors"] == 0
     pay = call("/api/checkout", {"session_id": sid, "name": "IVAN PETROV", "email": "ivan@example.com", "card": "4242424242424242"})
     print("\n== 6. Оплата (симуляция):", pay["status"], pay["booking_id"], pay["amount"])

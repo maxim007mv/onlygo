@@ -1,13 +1,14 @@
 """Smoke/e2e tests (offline mode). Run: pytest -q"""
+
 import os
 import tempfile
 
 os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(), "t.db")
 os.environ["OPENAI_API_KEY"] = ""
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from app.main import app  # noqa: E402
+from app.main import app
 
 c = TestClient(app)
 
@@ -36,6 +37,7 @@ def test_full_flow_offline():
     r = c.post("/api/chat", json={"message": "мы едем с собакой", "session_id": sid}).json()
     hid = next(i["id"] for i in r["plan"]["items"] if i["kind"] == "hotel")
     from app import datastore
+
     assert datastore.hotel(hid)["pets_allowed"]
     pay = c.post("/api/checkout", json={"session_id": sid}).json()
     assert pay["status"] == "paid"
@@ -51,11 +53,15 @@ def test_declined_card():
 
 def test_actionable_fix_and_demo_flow():
     from fastapi.testclient import TestClient
+
     from app.main import app
+
     c = TestClient(app)
     r = c.post("/api/chat", json={"message": "хочу куда-нибудь к тёплому морю в ноябре, недорого, с ребёнком, без долгих перелётов"}).json()
     fixes = [ch["fix"] for ch in r["plan"]["checks"] if ch.get("fix") and "id" in ch["fix"]]
     if fixes:
         r2 = c.post("/api/select", json={"session_id": r["session_id"], "kind": fixes[0]["kind"], "id": fixes[0]["id"]}).json()
         assert r2["plan"]["connection_errors"] == 0
-    assert any("Итог" in x for x in c.post("/api/chat", json={"message": "на 2 дня позже", "session_id": r["session_id"]}).json()["changes"])
+    assert any(
+        "Итог" in x for x in c.post("/api/chat", json={"message": "на 2 дня позже", "session_id": r["session_id"]}).json()["changes"]
+    )

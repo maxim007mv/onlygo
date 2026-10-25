@@ -1,0 +1,13 @@
+# Linter config (senior-code §16: ruff). Long lines allowed: dense Russian UI strings.
+line-length = 140
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "B", "UP", "I", "SIM", "BLE", "RUF100"]
+ignore = ["E701", "E702", "SIM108", "E731"]
+
+[lint.per-file-ignores]
+"tests/*" = ["E402"]
+
+[format]
+quote-style = "preserve"
