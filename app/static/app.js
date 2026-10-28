@@ -84,10 +84,11 @@ function scrollToMsg(el) {
 // anchored to the bottom while folding, so nothing visibly jumps.
 function foldOld() {
   const open = $$('#chat details.variants[open]'); if (!open.length) return;
-  const c = chatBox(), scroller = chatScrolls() ? c : document.scrollingElement;
-  const fromBottom = scroller.scrollHeight - scroller.scrollTop;
+  // keep the newest message exactly where it is on screen (works for the chat column and for the page on mobile)
+  const c = chatBox(), anchor = c.lastElementChild, before = anchor.getBoundingClientRect().top;
   open.forEach((d) => d.removeAttribute('open'));
-  scroller.scrollTop = scroller.scrollHeight - fromBottom;
+  const delta = anchor.getBoundingClientRect().top - before;
+  if (chatScrolls()) c.scrollTop += delta; else window.scrollBy({ top: delta, behavior: 'instant' });
 }
 function add(html, cls = 'agent', { scroll = true, into = null } = {}) {
   $('#empty').classList.add('hidden');
@@ -135,7 +136,7 @@ async function removeReq(slot) {
 async function applyFix(i) {
   const f = last?.plan?.checks?.[i]?.fix; if (!f) return;
   if (f.say) return send(f.say);
-  add(ic('wrench') + ' ' + esc(f.label), 'user');
+  foldOld(); scrollToMsg(add(ic('wrench') + ' ' + esc(f.label), 'user', { scroll: false }));
   return choose(f.kind, f.id);
 }
 async function post(bid, action, value) {
@@ -273,7 +274,7 @@ function checkout() {
    <button type="button" class="btn primary big" id="payBtn" data-act="pay">Оплатить ${rub(p.total)}</button>
    <button type="button" class="btn outline big" data-act="close">Вернуться к поездке</button>`;
   $('#modal').classList.remove('hidden');
-  $('#pName').focus();
+  $('#pName').focus({ preventScroll: true });
 }
 function closeModal() { $('#modal').classList.add('hidden'); checkoutOpen = false; setStep(last); }
 async function pay() {
@@ -319,7 +320,16 @@ function newTrip() {
   ['#demoBar', '#edits', '#hint'].forEach((s) => $(s).classList.add('hidden'));
   renderSide({}); $('#msg').focus();
 }
-function tab(t) { $$('#tabs button').forEach((x) => x.classList.toggle('on', x.dataset.t === t)); $('#main').className = 'm-' + t; window.scrollTo({ top: 0 }); }
+// mobile tabs: each tab keeps its own scroll position, so going to «План» and back doesn't throw the chat to the top
+const tabScroll = {};
+function tab(t) {
+  const cur = ($('#main').className.match(/m-(\w+)/) || [])[1];
+  if (cur === t) return;
+  if (cur) tabScroll[cur] = window.scrollY;
+  $$('#tabs button').forEach((x) => x.classList.toggle('on', x.dataset.t === t));
+  $('#main').className = 'm-' + t;
+  window.scrollTo({ top: tabScroll[t] ?? 0 });
+}
 
 // ---------------- single delegated click handler
 const ACTIONS = {
