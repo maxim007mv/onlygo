@@ -197,6 +197,15 @@ WORD_NUMS = "один|одну|два|две|три|четыре|пять|нед
 DEFAULT_SHORT_HOURS = 5  # «без долгих перелётов» without a number
 
 
+# what kind of trip an out-of-catalogue place implies (default: city break)
+UNKNOWN_PLACE_MOODS = {
+    "Бали": ("warm", "sea", "beach"),
+    "Байкал": ("nature",),
+    "Камчатка": ("nature", "mountains"),
+    "Мурманск": ("nature",),
+}
+
+
 def _to_float(s: str) -> float:
     return float(s.replace(",", "."))
 
@@ -453,3 +462,5 @@ def _parse_destination(t: str, s: dict) -> None:
     unknown = next((name for stem, name in UNKNOWN_PLACES.items() if re.search(TO + re.escape(stem), t)), None)
     if unknown:
         s["unknown_place"] = unknown
+        # keep the intent of the place so the closest catalogue options make sense
+        s.setdefault("moods", list(UNKNOWN_PLACE_MOODS.get(unknown, ("city",))))

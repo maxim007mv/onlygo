@@ -578,17 +578,36 @@ def _load_memory(state: dict, profile: dict) -> list[str]:
 def _blocking_reply(state: dict, blocking: list[dict]) -> str:
     known = requirements_view(state["req"], state["sources"])
     head = "Понял запрос. " + (f"Уже учёл: {', '.join(r['label'] for r in known)}. " if known else "")
-    ask = "уточню всего одно:" if len(blocking) == 1 else f"уточню {len(blocking)} вещи:"
-    return head + "Чтобы не гадать, " + ask
+    return head + "Чтобы не гадать, " + _ask_phrase(len(blocking))
 
 
-def _unknown_place_note(delta: dict) -> list[str]:
+def plural_ru(n: int, one: str, few: str, many: str) -> str:
+    """Russian plural form: 1 вопрос, 2 вопроса, 5 вопросов (11–14 → many)."""
+    if n % 10 == 1 and n % 100 != 11:
+        return one
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return few
+    return many
+
+
+def _ask_phrase(n: int) -> str:
+    if n == 1:
+        return "уточню всего одно:"
+    return f"уточню {n} {plural_ru(n, 'вопрос', 'вопроса', 'вопросов')}:"
+
+
+def _unknown_place_note(state: dict, delta: dict, today: date) -> list[str]:
     place = delta.get("unknown_place")
     if not place or delta.get("destination"):
         return []
+    n = len(ds.destinations())
+    req = dict(state["req"])
+    req.setdefault("month", today.month)
+    close = [d["name"] for d in tools.suggest_destinations(req, limit=3)]
     return [
-        f"{place} пока нет в демо-каталоге ({len(ds.destinations())} направлений, данные синтетические). "
-        "Не буду подменять молча — подберу ближайшие по вашим условиям варианты из каталога или назовите другой город."
+        f"{place} пока нет в демо-каталоге ({n} {plural_ru(n, 'направление', 'направления', 'направлений')}, данные синтетические). "
+        f"Не подменяю молча: ближе всего по типу отдыха — {', '.join(close)}. "
+        "Соберу план по лучшему из них, или назовите другой город."
     ]
 
 
@@ -602,7 +621,7 @@ def handle_message(state: dict, text: str, profile: dict, today: date | None = N
     memory_notes = _load_memory(state, profile)
     delta = understand(state, text, trace, today)
     changed, notes = apply_delta(state, delta, today)
-    notes = _unknown_place_note(delta) + notes
+    notes = _unknown_place_note(state, delta, today) + notes
     apply_implicit(state, notes)
     qs = clarifying_questions(state, today)
     blocking = [q for q in qs if q["blocking"]]
@@ -610,7 +629,7 @@ def handle_message(state: dict, text: str, profile: dict, today: date | None = N
         state["clarifications"] += len(qs)
     resp = {"questions": qs, "notes": notes, "memory": memory_notes, "implicit": delta.get("implicit_notes", [])}
     if blocking:
-        reply = _blocking_reply(state, blocking)
+        reply = " ".join([*notes[:1], _blocking_reply(state, blocking)]) if delta.get("unknown_place") else _blocking_reply(state, blocking)
         resp.update(reply=reply, plan=None, changes=[])
     else:
         changes = plan(state, changed, trace)
@@ -618,6 +637,8 @@ def handle_message(state: dict, text: str, profile: dict, today: date | None = N
         if state["first_rec_ms"] is None and state["plan"]:
             state["first_rec_ms"] = round((time.time() - state["started"]) * 1000)
         reply = compose_reply(state, notes, changes, memory_notes)
+        if delta.get("unknown_place") and notes and notes[0] not in reply:
+            reply = notes[0] + " " + reply
         resp.update(reply=reply, plan=state["plan"], changes=changes)
     resp["trace"] = trace.items
     resp["latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
