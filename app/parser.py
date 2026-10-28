@@ -269,7 +269,9 @@ def _parse_dates(t: str, today: date, s: dict) -> None:
 
 def _parse_word_range(t: str, month: int, today: date, s: dict) -> bool:
     """«с 3 по 10 ноября», «с 28 декабря по 5 января»."""
-    m = re.search(r"с (\d{1,2})(?:\s*(\w+))? по (\d{1,2}) (\w+)", t)
+    m = re.search(r"с (\d{1,2})(?:\s*(\w+))? по (\d{1,2}) (\w+)", t) or re.search(
+        r"\b(\d{1,2})(?:\s*(\w+))?\s*[-–—]\s*(\d{1,2}) (\w+)", t
+    )  # also «20-25 ноября», «28 декабря – 5 января»
     if not m:
         return False
     mo1 = next((num for pat, num in MONTHS.items() if m.group(2) and re.match(pat, m.group(2))), month)
@@ -327,6 +329,10 @@ def _parse_named_dates(t: str, today: date, s: dict) -> None:
         ny = _future(date(today.year, 12, 29), today)
         s["start_date"], s["month"] = ny.isoformat(), 12
         s.setdefault("nights", 7)
+    rel = re.search(r"\b(сегодня|послезавтра|завтра)\b", t)
+    if rel and "start_date" not in s:
+        d = today + timedelta(days={"сегодня": 0, "завтра": 1, "послезавтра": 2}[rel.group(1)])
+        s["start_date"], s["month"] = d.isoformat(), d.month
     if re.search(r"\bмайск", t) and "nights" not in s:
         d = _future(date(today.year, 5, 1), today)
         s["start_date"], s["month"], s["nights"] = d.isoformat(), 5, 4
@@ -391,6 +397,11 @@ def _parse_guests(t: str, s: dict, state: dict) -> None:
     if ages:
         s["child_ages"] = ages
         s.setdefault("children", max(len(ages), state.get("children") or 0))
+    if re.search(
+        r"младен|грудничк|грудн\w* ребен|\b\d{1,2} месяц\w* (?:ребен|малыш|сын|доч)|(?:ребен\w*|малыш\w*|младен\w*) \d{1,2} месяц", t
+    ):
+        s.setdefault("children", 1)
+        s["child_ages"] = sorted(set((s.get("child_ages") or []) + [0]))  # infant: 0 y.o. (no seat, cot in hotel)
     if re.search(r"\bбез (ребенка|детей)\b", t):
         s["children"], s["child_ages"] = 0, []
     if re.search(r"вдвоем|с женой|с мужем|с девушкой|с парнем|с подругой|с другом|пара\b|для двоих", t):
@@ -426,6 +437,13 @@ def _parse_constraints(t: str, s: dict) -> None:
         s["flexible_cancellation"] = True
     if re.search(r"первая линия|у моря|рядом с пляжем|близко к пляжу|первой линии", t):
         s["beach_close"] = True
+    if re.search(r"бабушк|дедушк|пожил|пенсионер|\b[7-9]\d лет", t):
+        s["elderly"] = True
+        s.setdefault("max_travel_hours", DEFAULT_SHORT_HOURS)
+    if re.search(r"колясоч|инвалид|доступн\w* сред|маломобильн|безбарьерн", t):
+        s["accessibility"] = True
+    if re.search(r"сначала .{2,40} (?:потом|затем|а после)|(?:потом|затем) (?:в|на) \w+ .{0,20}(?:потом|затем)", t):
+        s["multi_city"] = True
     if re.search(r"в центре|центр города", t):
         s["center_close"] = True
 

@@ -86,6 +86,9 @@ LABELS = {
     "pets": lambda v, r: "С питомцем",
     "max_travel_hours": lambda v, r: f"Дорога ≤ {v:g} ч",
     "direct_only": lambda v, r: "Только прямые",
+    "accessibility": lambda v, r: "Доступная среда",
+    "elderly": lambda v, r: "Пожилой путешественник",
+    "multi_city": lambda v, r: "Несколько городов",
     "visa_free_only": lambda v, r: "Без визы",
     "prefer_train": lambda v, r: "Предпочтительно поезд",
     "meals": lambda v, r: f"Питание: {tools.MEAL_RU[v]}",
@@ -589,6 +592,18 @@ def honest_limits(state: dict) -> list[str]:
             f"Дорога ~{hours:.1f} ч — дольше вашего лимита {maxh:g} ч"
             + (": это направление вы выбрали сами." if req.get("destination") else ": ближе подходящих вариантов не нашлось.")
         )
+    if req.get("accessibility"):
+        out.append(
+            "Доступная среда: в демо-каталоге нет данных о безбарьерных номерах — выбрал отель с коротким трансфером; "
+            "перед оплатой подтвердим условия у отеля (в продакшене — фильтр по полю инвентаря Ostrovok)."
+        )
+    if req.get("multi_city"):
+        out.append(
+            "Маршрут из нескольких городов пока собираю как одну поездку — спланировал последний город; "
+            "второй участок можно запросить отдельным сообщением."
+        )
+    if req.get("direct_only") and any(i.get("stops") for i in p["items"] if i["kind"] in ("outbound", "return")):
+        out.append("Прямых рейсов под эти даты не нашлось — в плане рейс с пересадкой.")
     return out
 
 
