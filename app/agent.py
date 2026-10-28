@@ -335,6 +335,7 @@ def clarifying_questions(state: dict, today: date) -> list[dict]:
 def plan(state: dict, changed: set, trace: Trace, force_all: bool = False) -> list[str]:
     """Incremental re-planning: recompute only the stages whose inputs changed, reuse the rest."""
     changes: list[str] = []
+    state["unmet"] = None
     old_plan = copy.deepcopy(state.get("plan"))
     dest_changed = _plan_destination(state, changed, trace, changes, force_all)
     did_before = state["selected"]["destination"]
@@ -347,6 +348,12 @@ def plan(state: dict, changed: set, trace: Trace, force_all: bool = False) -> li
         return changes
     _plan_transfers(state, trace, hotel_changed, transport_changed)
     new_plan = _assemble(state, trace)
+    if state.get("unmet"):
+        u = state["unmet"]
+        check = {"level": "warn", "title": "Условие не выполнено", "text": u["text"]}
+        if u["alt"]:
+            check["fix"] = {"label": f"Перейти в {u['alt']['name']}", "kind": "destination", "id": u["alt"]["id"]}
+        new_plan["checks"].insert(0, check)
     if old_plan and new_plan["total"] != old_plan["total"]:
         diff = new_plan["total"] - old_plan["total"]
         changes.append(f"Итог: {rub(old_plan['total'])} → {rub(new_plan['total'])} ({'+' if diff > 0 else '−'}{rub(abs(diff))})")
@@ -384,7 +391,7 @@ def _plan_destination(state: dict, changed: set, trace: Trace, changes: list[str
         changes.append(f"Направление {ds.destination(new)['name']} по-прежнему подходит — оставил")
     sel["destination"] = new
     if new not in [d["id"] for d in dests]:  # explicitly requested destination not in top list
-        cand["destinations"] = tools.suggest_destinations({**req, "destination": new}, limit=1) + dests[:3]
+        cand["destinations"] = [tools.destination_card(req, new)] + dests[:3]
     return new != cur
 
 
@@ -400,6 +407,26 @@ def _fallback_destination(state: dict, changes: list[str]) -> list[dict]:
     return []
 
 
+def _hotel_alternatives(state: dict, limit: int = 3) -> list[dict]:
+    """Destinations (other than the user's pick) that do have hotels for the current hard filters."""
+    req = {**state["req"], "destination": None}
+    cur = state["selected"]["destination"]
+    dests = tools.suggest_destinations(req, limit=8)
+    return [d for d in dests if d["id"] != cur and tools.search_hotels(req, d["id"], limit=1)][:limit]
+
+
+def _keep_unmet_hotel(state: dict, changes: list[str]) -> None:
+    """The user picked the destination themselves and it has no hotel for a hard filter (e.g. pets):
+    don't throw the plan away and don't silently switch the city — keep it, say so, offer alternatives."""
+    name = ds.destination(state["selected"]["destination"])["name"]
+    alts = _hotel_alternatives(state)
+    what = "отелей, которые принимают животных" if state["req"].get("pets") else "отелей под эти условия"
+    alt_txt = f" Есть в: {', '.join(a['name'] for a in alts)} — переключиться можно кнопкой в плане." if alts else ""
+    text = f"В {name} в демо-каталоге нет {what}. Отель оставил прежний, но условие он не выполняет.{alt_txt}"
+    changes.append(text)
+    state["unmet"] = {"text": text, "alt": alts[0] if alts else None}
+
+
 def _plan_hotels(state: dict, changed: set, trace: Trace, changes: list[str], dest_changed: bool) -> bool:
     req, sel, cand = state["req"], state["selected"], state["candidates"]
     if not (dest_changed or changed & HOTEL_KEYS or not cand.get("hotels")):
@@ -410,6 +437,9 @@ def _plan_hotels(state: dict, changed: set, trace: Trace, changes: list[str], de
     if not hs and not req.get("destination"):
         hs, dest_changed = _fallback_destination(state, changes), True
     cur = sel.get("hotel")
+    if not hs and req.get("destination") and cur and cand.get("hotels") and not dest_changed:
+        _keep_unmet_hotel(state, changes)
+        return False
     keep = (
         bool(cur)
         and not dest_changed
@@ -442,6 +472,8 @@ def _plan_transport(state: dict, changed: set, trace: Trace, changes: list[str],
     for k in ("outbound", "return"):
         if sel.get(k) not in [o["id"] for o in cand[k]]:
             sel[k] = cand[k][0]["id"] if cand[k] else None
+    if "prefer_train" in changed and req.get("prefer_train") and not any(o.get("mode") == "train" for o in cand["outbound"]):
+        changes.append(f"Поезда до {ds.destination(did)['name']} нет — оставил перелёт; поездом можно, например, в Сочи")
     if had_plan and not dest_changed and changed & {"start_date", "nights"}:
         changes.append("Билеты перепоискал на новые даты")
     return True
@@ -468,7 +500,7 @@ def _plan_transfers(state: dict, trace: Trace, hotel_changed: bool, transport_ch
 def _assemble(state: dict, trace: Trace) -> dict:
     req, sel, cand = state["req"], state["selected"], state["candidates"]
     did = sel["destination"]
-    dest = _by_id(cand.get("destinations"), did) or tools.suggest_destinations({**req, "destination": did}, limit=1)[0]
+    dest = _by_id(cand.get("destinations"), did) or tools.destination_card(req, did)
     return trace.run(
         "assemble_trip",
         trip.assemble_trip,
@@ -655,7 +687,7 @@ def _resolve_fixes(state: dict) -> None:
     cands, sel = state.get("candidates") or {}, state.get("selected") or {}
     for c in p["checks"]:
         f = c.get("fix")
-        if not f or "kind" not in f:
+        if not f or "kind" not in f or "pref" not in f:  # say-fixes and concrete picks need no resolving
             continue
         opts = [o for o in cands.get(f["kind"]) or [] if o["id"] != sel.get(f["kind"])]
 

@@ -262,6 +262,13 @@ def suggest_destinations(req: dict, limit: int = 3) -> list[dict]:
     return good[:limit]
 
 
+def destination_card(req: dict, did: str) -> dict:
+    """Score one specific destination (a user's pick), even if it would not make the ranked list."""
+    orig = ds.origin(req.get("origin") or "moscow")
+    month = req.get("month") or date.fromisoformat(req["start_date"]).month
+    return _score_destination(req, ds.destination(did), orig, month)
+
+
 def estimate_cost(req: dict, d: dict, orig: dict, month: int) -> int:
     adults, children = pax(req)
     dist = ds.distance_km(orig["lat"], orig["lon"], d["lat"], d["lon"])
