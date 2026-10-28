@@ -252,7 +252,8 @@ def _find_month(t: str) -> int | None:
 
 def _parse_dates(t: str, today: date, s: dict) -> None:
     month = _find_month(t)
-    if not (month and _parse_word_range(t, month, today, s)) and not _parse_numeric_date(t, today, s) and month:
+    found = bool(month) and (_parse_word_range(t, month, today, s) or _parse_day_month(t, today, s))
+    if not found and not _parse_numeric_date(t, today, s) and month:
         s["month"], s["start_date"] = month, _month_start(month, today).isoformat()
     _parse_named_dates(t, today, s)
 
@@ -274,6 +275,18 @@ def _parse_word_range(t: str, month: int, today: date, s: dict) -> bool:
         return False
     s["start_date"], s["nights"], s["month"] = start.isoformat(), min(MAX_NIGHTS, max(1, (end - start).days)), mo1
     return True
+
+
+def _parse_day_month(t: str, today: date, s: dict) -> bool:
+    """«с 10 декабря», «10 января» (single date written with a month word)."""
+    for m in re.finditer(r"\b(\d{1,2}) (\w+)", t):
+        mo = next((num for pat, num in MONTHS.items() if re.match(pat, m.group(2))), None)
+        start = mo and _safe_date(today.year, mo, int(m.group(1)))
+        if start:
+            start = _future(start, today)
+            s["start_date"], s["month"] = start.isoformat(), start.month
+            return True
+    return False
 
 
 def _parse_numeric_date(t: str, today: date, s: dict) -> bool:
@@ -305,6 +318,9 @@ def _parse_named_dates(t: str, today: date, s: dict) -> None:
         ny = _future(date(today.year, 12, 29), today)
         s["start_date"], s["month"] = ny.isoformat(), 12
         s.setdefault("nights", 7)
+    if re.search(r"\bмайск", t) and "nights" not in s:
+        d = _future(date(today.year, 5, 1), today)
+        s["start_date"], s["month"], s["nights"] = d.isoformat(), 5, 4
     if re.search(r"на (эти |ближайшие )?выходн", t):
         d = today + timedelta(days=(4 - today.weekday()) % 7 or 7)
         s["start_date"], s["nights"], s["month"] = d.isoformat(), 2, d.month
@@ -320,7 +336,9 @@ def _parse_named_dates(t: str, today: date, s: dict) -> None:
 def _parse_duration(t: str, s: dict) -> None:
     if "shift_days" in s or "extend_nights" in s:
         return
-    m = re.search(rf"на ({NUM}|{WORD_NUMS}|две недели) ?(недел\w*|дн[яейь]*|ноч\w*|сут\w*)?", t)
+    m = re.search(rf"на ({NUM}|{WORD_NUMS}|две недели) ?(недел\w*|дн[яейь]*|ноч\w*|сут\w*)?", t) or re.search(
+        rf"\b({NUM}|{WORD_NUMS}) (ноч\w*|недел\w*)", t
+    )
     if not m:
         return
     raw, unit = m.group(1), (m.group(2) or "")
@@ -387,7 +405,7 @@ def _parse_constraints(t: str, s: dict) -> None:
         s["direct_only"] = True
     if re.search(r"без виз|безвиз", t):
         s["visa_free_only"] = True
-    if re.search(r"на поезде|поездом|не люблю летать|боюсь летать|без самол", t):
+    if re.search(r"на поезде|поездом|\bпоезд(?:ом)? (?:в|до)\b|не люблю летать|боюсь летать|без самол", t):
         s["prefer_train"] = True
     if re.search(r"все включено|олл ?инклюзив|all ?inclusive", t):
         s["meals"] = "AI"
@@ -419,7 +437,7 @@ def _parse_destination(t: str, s: dict) -> None:
         if re.search(r"\b" + re.escape(stem), t):
             s["country"] = cn
     for did, aliases in DEST_ALIASES.items():
-        if any(re.search(TO + re.escape(a), t) for a in aliases):
+        if any(re.search(r"(?:" + TO + r"|^\s*)" + re.escape(a), t) for a in aliases):
             s["destination"] = did
             return
     for d in datastore.destinations():
