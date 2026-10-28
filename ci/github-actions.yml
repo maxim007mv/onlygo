@@ -1,0 +1,21 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check . && ruff format --check .
+      - run: DB_PATH=/tmp/ci.db PYTHONPATH=. pytest -q
+  docker:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t onlygo:ci .
+      - run: |
+          docker run -d --name og -p 8080:8080 onlygo:ci
+          for i in $(seq 1 30); do curl -fs localhost:8080/health && exit 0; sleep 1; done
+          docker logs og; exit 1
