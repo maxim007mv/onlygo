@@ -280,3 +280,26 @@ details.more > :not(summary) { margin-left: 12px; margin-right: 12px; } details.
   .composer .btn span { display: none; } .composer .btn { width: 52px; padding: 0; }
   .steps li { padding: 6px; } .steps li.cur { padding-right: 14px; }
 }
+
+/* ===== stable layout (demo no longer jumps) ===== */
+/* Desktop: the chat scrolls inside its own column, the page and the plan panel stay still. */
+@media (min-width: 961px) {
+  #chatCol { position: sticky; top: 76px; height: calc(100vh - 88px); min-height: 480px; }
+  #chat { flex: 1 1 auto; min-height: 0; position: relative; overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 8px 2px; scrollbar-gutter: stable; }
+  #chat:empty { flex: 0 0 0; }
+  #chatCol > :not(#chat) { flex: none; }
+  #empty { overflow-y: auto; }
+}
+/* hover must not move cards under a resting cursor while the content scrolls */
+.card:hover, .ex:hover { transform: none; }
+details.variants > summary { cursor: pointer; color: var(--blue); font-weight: 500; font-size: 14px; margin-top: 10px; }
+details.variants[open] > summary { display: none; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
+/* compact helper rows so the chat keeps most of a 720p screen */
+@media (min-width: 961px) {
+  .demobar, .edits { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-top: 8px; }
+  .demobar .st, .edits .chip-btn { flex: none; white-space: nowrap; }
+  .edits .chip-btn { min-height: 36px; }
+  .hint { margin-top: 8px; padding: 8px 12px; }
+  body.demo-run .hint { display: none; }
+}

@@ -67,12 +67,37 @@ async function api(path, body, method = 'POST') {
   if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : (j.detail?.message || 'Что-то пошло не так, попробуйте ещё раз'));
   return j;
 }
-function add(html, cls = 'agent') {
-  $('#empty').classList.add('hidden');
-  const d = document.createElement('div'); d.className = 'msg ' + cls; d.innerHTML = html; $('#chat').appendChild(d);
-  d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return d;
+// Smooth-scroll policy (fixes the "jumpy" demo): exactly ONE scroll per turn, inside the chat container
+// on desktop (the page itself stays still), cancelled/replaced if a newer one starts.
+const chatBox = () => $('#chat');
+const chatScrolls = () => getComputedStyle(chatBox()).overflowY === 'auto';
+const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+function scrollToMsg(el) {
+  const behavior = reduced() ? 'auto' : 'smooth';
+  if (chatScrolls()) {
+    const c = chatBox();
+    if (window.scrollY < c.closest('main').offsetTop - 80) window.scrollTo({ top: c.closest('main').offsetTop - 70, behavior });
+    c.scrollTo({ top: Math.max(0, el.offsetTop - 8), behavior });
+  } else el.scrollIntoView({ behavior, block: 'start' });
 }
-const typing = () => add('<span class="typing"><span></span><span></span><span></span></span> <span class="muted">Ищу направления, отели и билеты, проверяю стыковки…</span>');
+// Fold card grids of older answers so the chat does not grow by thousands of px per turn. The view is
+// anchored to the bottom while folding, so nothing visibly jumps.
+function foldOld() {
+  const open = $$('#chat details.variants[open]'); if (!open.length) return;
+  const c = chatBox(), scroller = chatScrolls() ? c : document.scrollingElement;
+  const fromBottom = scroller.scrollHeight - scroller.scrollTop;
+  open.forEach((d) => d.removeAttribute('open'));
+  scroller.scrollTop = scroller.scrollHeight - fromBottom;
+}
+function add(html, cls = 'agent', { scroll = true, into = null } = {}) {
+  $('#empty').classList.add('hidden');
+  if (html.includes('class="variants"')) foldOld();
+  const d = into || document.createElement('div'); d.className = 'msg ' + cls; d.innerHTML = html;
+  if (!into) $('#chat').appendChild(d);
+  if (scroll) scrollToMsg(d);
+  return d;
+}
+const typing = () => add('<span class="typing"><span></span><span></span><span></span></span> <span class="muted">Ищу направления, отели и билеты, проверяю стыковки…</span>', 'agent', { scroll: false });
 
 // ---------------- steps & hints
 function setStep(r) {
@@ -93,11 +118,12 @@ function setHint(r) {
 // ---------------- actions
 async function send(text) {
   text = (text || '').trim(); if (!text) return null;
-  add(esc(text), 'user'); $('#msg').value = '';
-  const wait = typing();
+  foldOld();
+  const u = add(esc(text), 'user', { scroll: false }); $('#msg').value = '';
+  const wait = typing(); scrollToMsg(u);
   try {
     const r = await api('/api/chat', { message: text, session_id: sid, user_id: uid });
-    wait.remove(); sid = r.session_id; localStorage.og_sid = sid; render(r); return r;
+    sid = r.session_id; localStorage.og_sid = sid; render(r, wait); return r;
   } catch (e) { wait.innerHTML = ic('alert') + ' ' + esc(e.message); return null; }
 }
 async function choose(kind, id) {
@@ -162,7 +188,7 @@ function xferCard(t, i, kind, selId) {
 }
 const section = (title, sub, cards) => `<div class="section-t">${title}<small>${sub}</small></div><div class="cards">${cards}</div>`;
 
-function render(r) {
+function render(r, into = null) {
   last = r;
   setMode(r.mode);
   let html = `<div class="reply">${esc(r.reply)}</div>`;
@@ -175,6 +201,7 @@ function render(r) {
   });
   const c = r.candidates || {}, s = r.selected || {}, budget = r.plan?.budget;
   if (c.destinations?.length && (r.plan || !r.changes?.length)) {
+    html += '<details class="variants" open><summary>Варианты и сравнение</summary>';
     html += section('Направления', 'лучшие под ваши условия', c.destinations.slice(0, 4).map((d, i) => destCard(d, i, s.destination, budget)).join(''));
     if (r.plan) {
       if (c.hotels) html += section('Отели', 'сравнение топ-3', c.hotels.map((h, i) => hotelCard(h, i, s.hotel)).join(''));
@@ -182,8 +209,11 @@ function render(r) {
       if (c.return) html += section('Билеты обратно', '', c.return.map((t, i) => trCard(t, i, 'return', s.return)).join(''));
       if (c.transfers_out) html += section('Трансфер до отеля', '', c.transfers_out.map((t, i) => xferCard(t, i, 'transfer_out', s.transfer_out)).join(''));
     }
+    html += '</details>';
   }
-  add(html);
+  // In a chat turn the user's message is already scrolled into view and the answer fills the typing
+  // bubble in place: no second scroll, no remove/insert flicker.
+  add(html, 'agent', { scroll: !into, into });
   $('#edits').classList.toggle('hidden', !r.plan);
   renderSide(r);
 }
@@ -269,17 +299,18 @@ const DEMO = [
   ['Оплата', async () => { checkout(); await sleep(1200); await pay(); }],
   ['После покупки', async () => { if (last?.booking) await post(last.booking.booking_id, 'early_checkin'); }],
 ];
+const DEMO_PAUSE_MS = 2600; // time to read each step on a screencast
 async function runDemo() {
   newTrip();
   const bar = $('#demoBar'); bar.classList.remove('hidden');
   bar.innerHTML = '<b>Демо:</b> ' + DEMO.map((d, i) => `<span class="st" id="ds${i}">${i + 1}. ${d[0]}</span>`).join('');
-  $('#demoBtn').disabled = true;
+  $('#demoBtn').disabled = true; document.body.classList.add('demo-run');
   for (let i = 0; i < DEMO.length; i++) {
     $('#ds' + i).className = 'st on';
-    await DEMO[i][1](); await sleep(1600);
+    await DEMO[i][1](); await sleep(DEMO_PAUSE_MS);
     $('#ds' + i).className = 'st done';
   }
-  $('#demoBtn').disabled = false;
+  $('#demoBtn').disabled = false; document.body.classList.remove('demo-run');
   add(ic('checkc') + ' Демо-сценарий завершён: один запрос → 1 уточнение → 2 пересборки → исправление стыковки → оплата → пост-покупка.');
 }
 function newTrip() {
