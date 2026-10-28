@@ -303,3 +303,9 @@ details.variants[open] > summary { display: none; }
   .hint { margin-top: 8px; padding: 8px 12px; }
   body.demo-run .hint { display: none; }
 }
+
+/* agent reply hierarchy */
+.reply p { margin: 0 0 6px; }
+.reply p.lead { font-weight: 600; font-size: 1.02em; }
+.reply p.honest { background: #fff6e5; border-left: 3px solid #f0a020; padding: 6px 10px; border-radius: 6px; }
+.reply p.hint { color: #6b7280; font-size: .92em; }

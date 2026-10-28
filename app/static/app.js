@@ -6,6 +6,17 @@ let sid = localStorage.og_sid || null;
 let last = null;
 let checkoutOpen = false;
 const rub = (x) => Math.round(x).toLocaleString('ru-RU') + ' ₽';
+// Break the agent's answer into scannable lines: lead, «Почему», «Компромисс», «Пакет», checks, honest limits.
+const REPLY_MARKS = ['Почему:', 'Компромисс:', 'Пакет:', 'Проверил стыковки:', 'Все стыковки проверены', 'Честно:', 'Доступная среда:', 'Маршрут из нескольких', 'Прямых рейсов', 'Поезда до', 'В ', 'Можно выбрать другой'];
+function fmtReply(text) {
+  const parts = String(text ?? '').split(/(?<=[.!?»)])\s+(?=(?:Почему:|Компромисс:|Пакет:|Проверил стыковки:|Все стыковки проверены|Честно:|Доступная среда:|Маршрут из нескольких|Прямых рейсов|Поезда до|Можно выбрать другой))/);
+  return parts.map((p, i) => {
+    const m = REPLY_MARKS.find((k) => k.endsWith(':') && p.startsWith(k));
+    const body = m ? `<b>${esc(m)}</b>${esc(p.slice(m.length))}` : esc(p);
+    const cls = i === 0 ? 'lead' : /^(Честно|Доступная|Маршрут|Прямых|Поезда)/.test(p) ? 'honest' : /^Можно выбрать/.test(p) ? 'hint' : '';
+    return `<p class="${cls}">${body}</p>`;
+  }).join('');
+}
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dm = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 const tm = (iso) => iso.slice(11, 16);
@@ -192,7 +203,7 @@ const section = (title, sub, cards) => `<div class="section-t">${title}<small>${
 function render(r, into = null) {
   last = r;
   setMode(r.mode);
-  let html = `<div class="reply">${esc(r.reply)}</div>`;
+  let html = `<div class="reply">${fmtReply(r.reply)}</div>`;
   if (r.changes?.length) html += `<div class="changes"><b>Что изменилось</b><ul>${r.changes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>`;
   (r.memory || []).forEach((m) => (html += `<div class="note">${ic('memory')}${esc(m)}</div>`));
   (r.notes || []).forEach((m) => (html += `<div class="note">${ic('edit')}${esc(m)}</div>`));
