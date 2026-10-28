@@ -165,7 +165,7 @@ curl -s localhost:8080/api/chat -H 'Content-Type: application/json' \
 docker compose exec app python tests/run_metrics.py
 # против запущенного сервера / локально
 python tests/run_metrics.py --url http://localhost:8080
-# unit/e2e (локально): pip install -r requirements-dev.txt && pytest -q   # 57 тестов: NLU, планировщик, пересборка, API, честные ответы, 20 «жюри»-запросов
+# unit/e2e (локально): pip install -r requirements-dev.txt && pytest -q   # 58 тестов: NLU, планировщик, пересборка, API, честные ответы, 20 «жюри»-запросов
 # линтер и форматирование
 ruff check . && ruff format --check .
 # сквозной демо-сценарий против сервера

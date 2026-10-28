@@ -57,3 +57,10 @@ def test_train_after_pick_explains_no_train():
     st = _picked()
     r = agent.handle_message(st, "хочу на поезде", {}, TODAY)
     assert any("Поезда до" in c for c in r["changes"])
+
+
+def test_user_pick_change_is_labelled_as_users_choice():
+    st = agent.new_state()
+    agent.handle_message(st, FIRST, {}, TODAY)
+    r = agent.select(st, "destination", "rak")
+    assert any("(ваш выбор)" in c for c in r["changes"])

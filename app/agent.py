@@ -388,7 +388,8 @@ def _plan_destination(state: dict, changed: set, trace: Trace, changes: list[str
         new = cur if _keep_destination(state, dests, changed) else dests[0]["id"]
     if cur and new != cur:
         changes.append(
-            f"Направление: {ds.destination(cur)['name']} → {ds.destination(new)['name']} (старое больше не лучшее под новые условия)"
+            f"Направление: {ds.destination(cur)['name']} → {ds.destination(new)['name']} "
+            + ("(ваш выбор)" if "destination" in changed and req.get("destination") else "(старое больше не лучшее под новые условия)")
         )
     elif cur and changed & DEST_KEYS:
         changes.append(f"Направление {ds.destination(new)['name']} по-прежнему подходит — оставил")
